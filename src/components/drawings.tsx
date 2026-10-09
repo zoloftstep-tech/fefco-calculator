@@ -183,7 +183,7 @@ export function ModelView({
   return (
     <svg
       viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-      className={`h-[340px] w-full touch-none select-none sm:h-[460px] lg:h-[520px] ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
+      className={`h-[300px] w-full max-w-full touch-pan-y select-none sm:h-[460px] lg:h-[520px] ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
       role="img"
       aria-label="Объёмная сборка коробки"
       onPointerDown={onPointerDown}
@@ -194,20 +194,6 @@ export function ModelView({
     >
       <defs>
         <Arrow id="model-arrow" />
-        <filter id="board" x="0%" y="0%" width="100%" height="100%" colorInterpolationFilters="sRGB">
-          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves={2} seed={3} result="grain" />
-          <feColorMatrix in="grain" type="saturate" values="0" result="mono" />
-          <feComponentTransfer in="mono" result="soft">
-            <feFuncR type="linear" slope="0.08" intercept="0.94" />
-            <feFuncG type="linear" slope="0.08" intercept="0.94" />
-            <feFuncB type="linear" slope="0.08" intercept="0.94" />
-          </feComponentTransfer>
-          <feBlend in="SourceGraphic" in2="soft" mode="multiply" result="textured" />
-          <feComposite in="textured" in2="SourceGraphic" operator="in" />
-        </filter>
-        <filter id="groundBlur" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="10" />
-        </filter>
         <Gradient id="floor" stops={["#d5ddd8", "#e4ebe7", "#c9d3ce"]} />
         <Gradient id="front" stops={["#f7faf8", "#e7ece8", "#d5ded9"]} />
         <Gradient id="side" stops={["#d5ded9", "#b7c2bc"]} />
@@ -227,7 +213,6 @@ export function ModelView({
           ry={Math.max((footMaxY - footMinY) * 0.28, 8)}
           fill="#1c2824"
           opacity={0.12}
-          filter="url(#groundBlur)"
         />
       )}
 
@@ -237,7 +222,6 @@ export function ModelView({
           <polygon
             points={pts(face.points.map(screen))}
             fill={face.fill === "slot" ? "#24312c" : `url(#${face.fill as FaceFill})`}
-            filter={face.fill === "slot" ? undefined : "url(#board)"}
             stroke={face.fill === "slot" ? "#24312c" : "#2c3a36"}
             strokeWidth={face.fill === "slot" ? 0.6 : 1.05}
             strokeLinejoin="round"
@@ -351,7 +335,7 @@ export function NetView({ net }: { net: NetModel }) {
   const gap = Math.max(net.width, net.height) * 0.065;
 
   return (
-    <svg viewBox="0 0 900 360" className="h-[240px] w-full sm:h-[320px]" role="img" aria-label="Развёртка коробки">
+    <svg viewBox="0 0 900 360" className="h-[220px] w-full max-w-full sm:h-[320px]" role="img" aria-label="Развёртка коробки">
       <defs>
         <Arrow id="net-arrow" />
       </defs>

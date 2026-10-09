@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Pause, Play, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,14 +67,17 @@ export function Calculator() {
     yaw: 0.45,
     playing: true,
     dragging: false,
+    armDrag: false,
     holdUntil: 0,
   });
   const dragX = useRef(0);
+  const dragY = useRef(0);
   const [, setFrame] = useState(0);
 
   useEffect(() => {
     let raf = 0;
     let last = performance.now();
+    let lastPaint = 0;
     const loop = (now: number) => {
       const dt = Math.min(40, now - last);
       last = now;
@@ -88,7 +91,10 @@ export function Calculator() {
       } else if (!state.dragging && now > state.holdUntil) {
         state.yaw += ((Math.PI * 2) / 16000) * dt;
       }
-      setFrame((frame) => (frame + 1) % 1_000_000);
+      if (now - lastPaint > 32) {
+        lastPaint = now;
+        setFrame((frame) => (frame + 1) % 1_000_000);
+      }
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
@@ -102,18 +108,25 @@ export function Calculator() {
   const playing = view.current.playing;
   const faces = dims ? getFaces(typeId, dims, t, yaw) : [];
   const net = dims ? getNet(typeId, dims) : null;
-  const fit = dims
-    ? fitPoints(
-        [
-          faces.flatMap((face) => face.points),
-          getFaces(typeId, dims, 0, yaw).flatMap((face) => face.points),
-          getFaces(typeId, dims, 1, yaw).flatMap((face) => face.points),
-          anchors(dims),
-        ],
-        dims.L / 2,
-        dims.W / 2,
-      )
-    : null;
+  const length = dims?.L;
+  const width = dims?.W;
+  const height = dims?.H;
+  const glue = dims?.G;
+  const fit = useMemo(() => {
+    if (length === undefined || width === undefined || height === undefined || glue === undefined) {
+      return null;
+    }
+    const box = { L: length, W: width, H: height, G: glue };
+    return fitPoints(
+      [
+        getFaces(typeId, box, 0).flatMap((face) => face.points),
+        getFaces(typeId, box, 1).flatMap((face) => face.points),
+        anchors(box),
+      ],
+      length / 2,
+      width / 2,
+    );
+  }, [typeId, length, width, height, glue]);
   const warnings = dims ? warningsFor(typeId, dims) : [
     "Введите положительные размеры коробки. Клеевой клапан может быть нулевым.",
   ];
@@ -190,7 +203,7 @@ export function Calculator() {
         : "Собрать";
 
   return (
-    <main className="mx-auto max-w-[1460px] px-4 py-6 sm:px-6 sm:py-8">
+    <main className="mx-auto min-w-0 max-w-[1460px] px-4 py-6 sm:px-6 sm:py-8">
       <h1 className="text-[1.7rem] font-semibold tracking-tight text-[#1c2824] sm:text-3xl">
         Калькулятор FEFCO
       </h1>
@@ -305,7 +318,7 @@ export function Calculator() {
           </p>
         </aside>
 
-        <section className="grid gap-5">
+        <section className="grid min-w-0 gap-5">
           <div className="rounded-2xl border border-[#e3e6ea] bg-white p-4 shadow-[0_5px_20px_#26334206] sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-semibold">
@@ -330,11 +343,26 @@ export function Calculator() {
                 dragging={view.current.dragging}
                 onPointerDown={(event) => {
                   if (event.button !== 0 && event.pointerType === "mouse") return;
-                  view.current.dragging = true;
                   dragX.current = event.clientX;
-                  event.currentTarget.setPointerCapture(event.pointerId);
+                  dragY.current = event.clientY;
+                  if (event.pointerType === "mouse") {
+                    view.current.dragging = true;
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                    return;
+                  }
+                  view.current.armDrag = true;
                 }}
                 onPointerMove={(event) => {
+                  if (view.current.armDrag && !view.current.dragging) {
+                    const dx = event.clientX - dragX.current;
+                    const dy = event.clientY - dragY.current;
+                    if (Math.hypot(dx, dy) < 8) return;
+                    view.current.armDrag = false;
+                    if (Math.abs(dy) > Math.abs(dx)) return;
+                    view.current.dragging = true;
+                    dragX.current = event.clientX;
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                  }
                   if (!view.current.dragging) return;
                   const dx = event.clientX - dragX.current;
                   dragX.current = event.clientX;
@@ -342,6 +370,7 @@ export function Calculator() {
                 }}
                 onPointerUp={() => {
                   view.current.dragging = false;
+                  view.current.armDrag = false;
                 }}
                 onDoubleClick={() => {
                   view.current.yaw = 0.45;
@@ -354,7 +383,7 @@ export function Calculator() {
             )}
 
             <p className="text-center text-xs text-[#5c6b66]">
-              Потяните модель, двойной щелчок возвращает ракурс. Линейка внизу — те же миллиметры, что в полях.
+              Вертикально страница листается. Модель поворачивается движением вбок, двойной щелчок возвращает ракурс.
             </p>
 
             <div className="mx-auto mt-4 max-w-3xl">
