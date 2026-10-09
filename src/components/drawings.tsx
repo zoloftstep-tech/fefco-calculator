@@ -11,12 +11,13 @@ import { fmt, type Pt, type Vec3 } from "@/lib/math";
 import { VIEW_H, VIEW_W, type Fit } from "@/lib/project";
 
 const TONE: Record<PanelTone, string> = {
-  body: "#ead7b8",
-  flap: "#f5e9d7",
-  lock: "#d7b48a",
-  lid: "#f3e6cf",
-  glue: "#d8be94",
-  floor: "#e4cba6",
+  body: "#e7ece8",
+  flap: "#f4f7f5",
+  lock: "#c5d0cb",
+  lid: "#eef3f0",
+  glue: "#d5ded9",
+  floor: "#dce3df",
+  slot: "#24312c",
 };
 
 function pts(points: [number, number][]) {
@@ -120,50 +121,6 @@ function Dimension({
   );
 }
 
-function faceLabel(
-  face: WorldFace,
-  screen: (p: Vec3) => [number, number],
-) {
-  if (!face.label || !face.labelAt || face.points.length < 4) return null;
-  const [i0, i1, i3] = face.labelAt;
-  const bl = face.points[i0];
-  const br = face.points[i1];
-  const tl = face.points[i3];
-  const width = Math.hypot(br[0] - bl[0], br[1] - bl[1], br[2] - bl[2]);
-  const height = Math.hypot(tl[0] - bl[0], tl[1] - bl[1], tl[2] - bl[2]);
-  if (width < 36 || height < 22) return null;
-
-  const sbl = screen(bl);
-  const sbr = screen(br);
-  const stl = screen(tl);
-  const ma = (sbr[0] - sbl[0]) / width;
-  const mb = (sbr[1] - sbl[1]) / width;
-  const mc = (sbl[0] - stl[0]) / height;
-  const md = (sbl[1] - stl[1]) / height;
-  const fontSize = Math.min(height * 0.26, width / 6.4);
-  if (fontSize < 8) return null;
-
-  return (
-    <text
-      x={width * 0.5}
-      y={height * 0.56}
-      textAnchor="middle"
-      dominantBaseline="central"
-      fontFamily='"Arial Black", Arial, sans-serif'
-      fontSize={fontSize}
-      fontWeight={900}
-      fill="#15110c"
-      fillOpacity={0.4}
-      stroke="#15110c"
-      strokeWidth={fontSize * 0.03}
-      strokeOpacity={0.4}
-      transform={`matrix(${ma.toFixed(5)} ${mb.toFixed(5)} ${mc.toFixed(5)} ${md.toFixed(5)} ${stl[0].toFixed(2)} ${stl[1].toFixed(2)})`}
-    >
-      {face.label}
-    </text>
-  );
-}
-
 function average(face: WorldFace, depth: (p: Vec3) => number) {
   return face.points.reduce((sum, point) => sum + depth(point), 0) / face.points.length;
 }
@@ -195,14 +152,17 @@ export function ModelView({
   const zs = faces.flatMap((face) => face.points.map((p) => p[2]));
   const flatSheet = zs.length === 0 || Math.max(...zs) - Math.min(...zs) < 1.2;
   const ordered = [...faces].sort((a, b) => {
-    if (flatSheet) return a.stack - b.stack || a.id.localeCompare(b.id);
-    return average(a, depth) + a.stack * 16 - (average(b, depth) + b.stack * 16);
+    if (a.stack !== b.stack) return a.stack - b.stack;
+    if (flatSheet) return a.id.localeCompare(b.id);
+    const delta = average(a, depth) - average(b, depth);
+    return Math.abs(delta) > 0.05 ? delta : a.id.localeCompare(b.id);
   });
 
   const { L, W, H } = dims;
   const gap = Math.max(22, Math.max(L, W, H) * 0.14);
-  const floor = faces.find((face) => face.id === "floor");
-  const foot = floor ? floor.points.map(screen) : [];
+  const foot = faces
+    .filter((face) => face.id === "floor" || face.id.startsWith("floor"))
+    .flatMap((face) => face.points.map(screen));
   let footMinX = Infinity;
   let footMaxX = -Infinity;
   let footMinY = Infinity;
@@ -234,39 +194,39 @@ export function ModelView({
     >
       <defs>
         <Arrow id="model-arrow" />
-        <filter id="kraft" x="0%" y="0%" width="100%" height="100%" colorInterpolationFilters="sRGB">
-          <feTurbulence type="fractalNoise" baseFrequency="0.72 0.28" numOctaves={3} seed={14} result="grain" />
+        <filter id="board" x="0%" y="0%" width="100%" height="100%" colorInterpolationFilters="sRGB">
+          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves={2} seed={3} result="grain" />
           <feColorMatrix in="grain" type="saturate" values="0" result="mono" />
-          <feComponentTransfer in="mono" result="softGrain">
-            <feFuncR type="linear" slope="0.2" intercept="0.8" />
-            <feFuncG type="linear" slope="0.2" intercept="0.8" />
-            <feFuncB type="linear" slope="0.2" intercept="0.8" />
+          <feComponentTransfer in="mono" result="soft">
+            <feFuncR type="linear" slope="0.08" intercept="0.94" />
+            <feFuncG type="linear" slope="0.08" intercept="0.94" />
+            <feFuncB type="linear" slope="0.08" intercept="0.94" />
           </feComponentTransfer>
-          <feBlend in="SourceGraphic" in2="softGrain" mode="multiply" result="textured" />
+          <feBlend in="SourceGraphic" in2="soft" mode="multiply" result="textured" />
           <feComposite in="textured" in2="SourceGraphic" operator="in" />
         </filter>
         <filter id="groundBlur" x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation="10" />
         </filter>
-        <Gradient id="floor" stops={["#997346", "#b18a58", "#c4a16f"]} />
-        <Gradient id="front" stops={["#c39a66", "#b48b59", "#977044"]} />
-        <Gradient id="side" stops={["#b48b58", "#8d653d"]} />
-        <Gradient id="back" stops={["#bd9867", "#a17a4c", "#775333"]} vertical />
-        <Gradient id="flap" stops={["#d0ae7c", "#b28b57"]} />
-        <Gradient id="flapDark" stops={["#c09b68", "#a77e4c"]} />
-        <Gradient id="lock" stops={["#c4a06a", "#8d6840"]} />
-        <Gradient id="lid" stops={["#d2b07e", "#b89260", "#9a7448"]} />
-        <Gradient id="tuck" stops={["#c9a56e", "#a07c4b"]} />
+        <Gradient id="floor" stops={["#d5ddd8", "#e4ebe7", "#c9d3ce"]} />
+        <Gradient id="front" stops={["#f7faf8", "#e7ece8", "#d5ded9"]} />
+        <Gradient id="side" stops={["#d5ded9", "#b7c2bc"]} />
+        <Gradient id="back" stops={["#cfd8d3", "#b7c2bc", "#9aabb3"]} vertical />
+        <Gradient id="flap" stops={["#f4f7f5", "#d5ded9"]} />
+        <Gradient id="flapDark" stops={["#e3eae6", "#c5d0cb"]} />
+        <Gradient id="lock" stops={["#dfe7e3", "#aebbb6"]} />
+        <Gradient id="lid" stops={["#f3f7f5", "#dce5e1", "#c5d0cb"]} />
+        <Gradient id="tuck" stops={["#d5ded9", "#9eaea8"]} />
       </defs>
 
-      {floor && (
+      {foot.length > 0 && (
         <ellipse
           cx={(footMinX + footMaxX) / 2 + 8}
           cy={(footMinY + footMaxY) / 2 + 18}
           rx={Math.max((footMaxX - footMinX) * 0.46, 12)}
           ry={Math.max((footMaxY - footMinY) * 0.28, 8)}
-          fill="#51391e"
-          opacity={0.18}
+          fill="#1c2824"
+          opacity={0.12}
           filter="url(#groundBlur)"
         />
       )}
@@ -276,13 +236,12 @@ export function ModelView({
           <title>{face.name}</title>
           <polygon
             points={pts(face.points.map(screen))}
-            fill={`url(#${face.fill as FaceFill})`}
-            filter="url(#kraft)"
-            stroke="#493624"
-            strokeWidth={1.15}
+            fill={face.fill === "slot" ? "#24312c" : `url(#${face.fill as FaceFill})`}
+            filter={face.fill === "slot" ? undefined : "url(#board)"}
+            stroke={face.fill === "slot" ? "#24312c" : "#2c3a36"}
+            strokeWidth={face.fill === "slot" ? 0.6 : 1.05}
             strokeLinejoin="round"
           />
-          {faceLabel(face, screen)}
         </g>
       ))}
 
@@ -312,10 +271,10 @@ export function ModelView({
       />
 
       <g>
-        <line x1={28} y1={VIEW_H - 28} x2={28 + barPx} y2={VIEW_H - 28} stroke="#252a30" strokeWidth={2} />
-        <line x1={28} y1={VIEW_H - 34} x2={28} y2={VIEW_H - 22} stroke="#252a30" strokeWidth={2} />
-        <line x1={28 + barPx} y1={VIEW_H - 34} x2={28 + barPx} y2={VIEW_H - 22} stroke="#252a30" strokeWidth={2} />
-        <text x={28 + barPx / 2} y={VIEW_H - 38} textAnchor="middle" fontSize={13} fill="#252a30">
+        <line x1={28} y1={VIEW_H - 28} x2={28 + barPx} y2={VIEW_H - 28} stroke="#1c2824" strokeWidth={2} />
+        <line x1={28} y1={VIEW_H - 34} x2={28} y2={VIEW_H - 22} stroke="#1c2824" strokeWidth={2} />
+        <line x1={28 + barPx} y1={VIEW_H - 34} x2={28 + barPx} y2={VIEW_H - 22} stroke="#1c2824" strokeWidth={2} />
+        <text x={28 + barPx / 2} y={VIEW_H - 38} textAnchor="middle" fontSize={13} fill="#1c2824">
           {fmt(barMm)} мм
         </text>
       </g>
@@ -426,7 +385,7 @@ export function NetView({ net }: { net: NetModel }) {
         if (!panel.label || !roomy(panel.points)) return null;
         const c = transform(panelCentroid(panel.points));
         return (
-          <text key={`t${index}`} x={c[0]} y={c[1]} textAnchor="middle" dominantBaseline="middle" fontSize={14} fill="#3a3128">
+          <text key={`t${index}`} x={c[0]} y={c[1]} textAnchor="middle" dominantBaseline="middle" fontSize={14} fill="#24312c">
             {panel.label}
           </text>
         );

@@ -21,7 +21,7 @@ import { fmt, fmtArea, type Vec3 } from "@/lib/math";
 import { fitPoints } from "@/lib/project";
 
 const PLAY_MS = 9000;
-const ORDER: BoxId[] = ["0427", "0422", "0201"];
+const ORDER: BoxId[] = ["0427", "0422", "0470", "0215", "0201"];
 
 type Fields = { L: string; W: string; H: string; G: string };
 
@@ -100,11 +100,16 @@ export function Calculator() {
   const t = view.current.t;
   const yaw = view.current.yaw;
   const playing = view.current.playing;
-  const faces = dims ? getFaces(typeId, dims, t) : [];
+  const faces = dims ? getFaces(typeId, dims, t, yaw) : [];
   const net = dims ? getNet(typeId, dims) : null;
   const fit = dims
     ? fitPoints(
-        [[...faces.flatMap((face) => face.points), ...anchors(dims)]],
+        [
+          faces.flatMap((face) => face.points),
+          getFaces(typeId, dims, 0, yaw).flatMap((face) => face.points),
+          getFaces(typeId, dims, 1, yaw).flatMap((face) => face.points),
+          anchors(dims),
+        ],
         dims.L / 2,
         dims.W / 2,
       )
@@ -122,6 +127,12 @@ export function Calculator() {
 
   function chooseType(id: BoxId) {
     setTypeId(id);
+    const usesGlue = id === "0201" || id === "0215";
+    if (usesGlue) {
+      setFields((current) =>
+        Number(current.G) > 0 ? current : { ...current, G: String(CATALOG[id].defaults.G) },
+      );
+    }
     view.current.t = 0;
     view.current.playing = true;
   }
@@ -180,16 +191,16 @@ export function Calculator() {
 
   return (
     <main className="mx-auto max-w-[1460px] px-4 py-6 sm:px-6 sm:py-8">
-      <h1 className="text-[1.7rem] font-semibold tracking-tight text-[#252a30] sm:text-3xl">
+      <h1 className="text-[1.7rem] font-semibold tracking-tight text-[#1c2824] sm:text-3xl">
         Калькулятор FEFCO
       </h1>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-[#737b84] sm:text-[15px]">
         Внутренние размеры в миллиметрах задают и развёртку, и сборку.
-        Самосборные 0427 и 0422 складываются с плоского листа; 0201 показывает
-        закрытие клапанов уже сформированного рукава.
+        0427, 0422 и 0470 складываются с плоского листа. 0201 и 0215 показывают
+        уже склеенный рукав: клапаны, дно 1-2-3 и крышку.
       </p>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {ORDER.map((id) => {
           const item = CATALOG[id];
           const selected = id === typeId;
@@ -200,8 +211,8 @@ export function Calculator() {
               onClick={() => chooseType(id)}
               className={`rounded-2xl border px-4 py-3 text-left transition ${
                 selected
-                  ? "border-[#e98532] bg-[#fff7f0] shadow-[0_0_0_1px_#e98532]"
-                  : "border-[#e3e6ea] bg-white hover:border-[#d5c2ae]"
+                  ? "border-[#1f6f64] bg-[#f3f7f6] shadow-[0_0_0_1px_#1f6f64]"
+                  : "border-[#d5ddd8] bg-white hover:border-[#b7c9c3]"
               }`}
             >
               <div className="flex items-center justify-between gap-3">
@@ -209,8 +220,8 @@ export function Calculator() {
                 <span
                   className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${
                     item.selfAssembly
-                      ? "bg-[#fff2e5] text-[#a85a12]"
-                      : "bg-[#f3f4f6] text-[#68727c]"
+                      ? "bg-[#e5f2ef] text-[#1b5c54]"
+                      : "bg-[#eef1ef] text-[#5c6b66]"
                   }`}
                 >
                   {item.selfAssembly ? "самосбор" : "клапаны"}
@@ -253,7 +264,7 @@ export function Calculator() {
               max={600}
               onChange={(value) => setField("H", value)}
             />
-            {typeId === "0201" && (
+            {(typeId === "0201" || typeId === "0215") && (
               <DimensionField
                 id="glue"
                 label="Клеевой клапан, мм"
@@ -281,7 +292,7 @@ export function Calculator() {
 
           <div className="mt-3 space-y-2" aria-live="polite">
             {warnings.map((message) => (
-              <p key={message} className="rounded-lg bg-[#fff5e8] px-3 py-2 text-[13px] leading-5 text-[#8a4b12]">
+              <p key={message} className="rounded-lg bg-[#e7f3f0] px-3 py-2 text-[13px] leading-5 text-[#1b5c54]">
                 {message}
               </p>
             ))}
@@ -304,7 +315,7 @@ export function Calculator() {
                 <span className="rounded-md bg-[#f3f4f6] px-2.5 py-1 text-xs text-[#68727c]">
                   {meta.code}
                 </span>
-                <span className="min-w-28 rounded-md bg-[#fff2e5] px-2.5 py-1 text-center text-xs font-semibold text-[#a85a12] tabular-nums">
+                <span className="min-w-28 rounded-md bg-[#e5f2ef] px-2.5 py-1 text-center text-xs font-semibold text-[#1b5c54] tabular-nums">
                   Поворот {yawShown}°
                 </span>
               </div>
@@ -342,8 +353,7 @@ export function Calculator() {
               </div>
             )}
 
-            <p className="text-center text-xs text-[#737b84]">
-              <b className="font-semibold text-[#252a30]">OptoPack</b> на наружной стенке.
+            <p className="text-center text-xs text-[#5c6b66]">
               Потяните модель, двойной щелчок возвращает ракурс. Линейка внизу — те же миллиметры, что в полях.
             </p>
 
@@ -380,7 +390,7 @@ export function Calculator() {
                     }}
                     className={`min-w-[7.5rem] flex-1 rounded-xl border px-2.5 py-2 text-center text-xs leading-4 ${
                       index === stageIndex
-                        ? "border-[#f0c79c] bg-[#fff2e5] text-[#a85a12]"
+                        ? "border-[#b7d4cc] bg-[#e7f3f0] text-[#1b5c54]"
                         : "border-[#e3e6ea] bg-[#f7f8fa] text-[#737b84]"
                     }`}
                   >

@@ -10,7 +10,7 @@ const manrope = Manrope({
 export const metadata: Metadata = {
   title: "Калькулятор FEFCO",
   description:
-    "Развёртки FEFCO 0201, 0422 и 0427 по внутренним размерам и анимация сборки самосборных коробок.",
+    "Развёртки FEFCO 0201, 0215, 0422, 0427 и 0470 по внутренним размерам и сборка в масштабе.",
 };
 
 export default function RootLayout({
