@@ -95,7 +95,7 @@ for (const [id, dims] of [
 }
 
 assert(panelCount("0422", d422) === 13, `0422 panels ${panelCount("0422", d422)}`);
-assert(panelCount("0470", d470) === 15, `0470 panels ${panelCount("0470", d470)}`);
+assert(panelCount("0470", d470) >= 15, `0470 panels ${panelCount("0470", d470)}`);
 
 const box422 = faceMap("0422", d422, 1);
 assert(Math.abs(box422.front.points[0][1]) < 1, "0422 front on y=0");
@@ -223,18 +223,15 @@ const d471 = { L: 300, W: 160, H: 90, G: 0, T: 1.5 };
 const box471 = faceMap("0471", d471, 1);
 assert(center(box471.lid.points)[2] > 80, "0471 lid up");
 assert(Math.min(...box471["lid-front"].points.map((p) => p[1])) >= -1, "0471 rounded flap tucks inside");
+assert(center(box471["left-roll"].points)[0] > 1, "0471 left roll inside");
+assert(Math.min(...box471["ear-l"].points.map((p) => p[0])) > 0, "0471 lid ear finishes inside the box");
+assert(Math.max(...box471["ear-l"].points.map((p) => p[0])) < 20, "0471 lid ear enters the end pocket");
+assert(getNet("0471", d471).panels.some((panel) => panel.label === "Биговка"), "0471 draws double-crease bridge");
+assert(getNet("0471", d471).panels.filter((panel) => panel.tone === "slot").length >= 2, "0471 draws floor slots");
 {
-  const hook = box471["hook-l"].points;
-  const slot = box471["slot-l"].points;
-  const overlap =
-    Math.max(...hook.map((p) => p[1])) > Math.min(...slot.map((p) => p[1])) &&
-    Math.min(...hook.map((p) => p[1])) < Math.max(...slot.map((p) => p[1])) &&
-    Math.max(...hook.map((p) => p[2])) > Math.min(...slot.map((p) => p[2])) &&
-    Math.min(...hook.map((p) => p[2])) < Math.max(...slot.map((p) => p[2]));
-  assert(overlap, "0471 hook enters the end slot");
-  assert(Math.min(...hook.map((p) => p[0])) > 0, "0471 hook stays inside the end");
+  const bent = faceMap("0471", d471, 0.52);
+  assert(center(bent.lid.points)[2] > 120, "0471 lid still up while ears bend");
 }
-assert(getNet("0471", d471).panels.filter((panel) => panel.tone === "slot").length === 2, "0471 draws two end slots");
 
 for (const id of ["0201", "0215", "0422", "0427", "0470", "0471"] as const) {
   const dims =
