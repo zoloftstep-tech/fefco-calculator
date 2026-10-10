@@ -1,16 +1,35 @@
 import { phase, type PanelDef } from "@/lib/fold";
 import type { Pt } from "@/lib/math";
 import type { Dims } from "@/lib/fefco-types";
+import { resolveBoard } from "@/lib/params/board";
 
-const ROLL = 172;
+/** Outer wall + bridge + inner roll ≈ catalog TOE; angles approximate the double crease. */
+const BRIDGE_FOLD = 90;
+const ROLL_FOLD = 90;
 
 export function mailerMetrics(d: Dims) {
-  const lug = Math.max(12, Math.min(18, d.H * 0.2));
-  const tuck = Math.min(d.H * 0.78, Math.max(16, d.W * 0.42));
-  const ear = Math.min(d.H * 0.92, d.W * 0.46);
-  const inset = Math.max(7, d.H * 0.1);
-  const dust = Math.min(d.H * 0.42, d.W * 0.22, 36);
-  return { lug, tuck, ear, inset, dust, roll: Math.max(8, d.H - lug) };
+  const board = resolveBoard(d);
+  const { H, W, T, bridge, tuckClearance, slotKerf } = board;
+  const lug = Math.max(12, Math.min(18, H * 0.2));
+  const tuck = Math.min(H * 0.78, Math.max(16, W * 0.42)) + tuckClearance * 0.25;
+  /** Catalog lid ears ≈ H, capped by width so they fit the roll pocket. */
+  const ear = Math.min(H * 0.98, W * 0.48);
+  const inset = Math.max(7, H * 0.1, T * 2);
+  const dust = Math.min(H * 0.42, W * 0.22, 36);
+  const roll = Math.max(8, H - lug);
+  return {
+    lug,
+    tuck,
+    ear,
+    inset,
+    dust,
+    roll,
+    bridge,
+    T,
+    tuckClearance,
+    slotKerf,
+    slotDepth: Math.max(6, slotKerf * 2.4),
+  };
 }
 
 /** Locking lugs along an end of length `span`, matching the usual 0/1/2/3 split. */
@@ -101,19 +120,20 @@ function tuckEarPoly(depth: number, reach: number, dir: 1 | -1): Pt[] {
 
 export function mailerPanels(d: Dims): PanelDef[] {
   const { L, W, H } = d;
-  const { lug, tuck, ear, inset, dust, roll } = mailerMetrics(d);
+  const { lug, tuck, ear, inset, dust, roll, bridge, T, slotDepth } = mailerMetrics(d);
   const spans = lugSpans(W);
 
   const walls = (t: number) => phase(t, 0.02, 0.1, 0, 90);
   const dusts = (t: number) => phase(t, 0.08, 0.16, 0, 90);
   const ends = (t: number) => phase(t, 0.14, 0.24, 0, 90);
-  const rolls = (t: number) => phase(t, 0.22, 0.34, 0, ROLL);
-  const lugs = (t: number) => phase(t, 0.32, 0.44, 0, 22);
+  const bridges = (t: number) => phase(t, 0.2, 0.3, 0, BRIDGE_FOLD);
+  const rolls = (t: number) => phase(t, 0.28, 0.38, 0, ROLL_FOLD);
+  const lugs = (t: number) => phase(t, 0.36, 0.44, 0, 88);
   const lid = (t: number) => phase(t, 0.56, 0.68, 0, 90);
   const ears = (t: number) => (t <= 0.68 ? phase(t, 0.44, 0.56, 0, 48) : phase(t, 0.68, 0.8, 48, 100));
   const tuckAngle = (t: number) => phase(t, 0.86, 0.94, 0, 104);
   const flapEars = (t: number) => (t <= 0.94 ? phase(t, 0.78, 0.86, 0, 42) : phase(t, 0.94, 1, 42, 94));
-  const side = 0;
+  const side = Math.max(0, T * 0.5);
 
   const panels: PanelDef[] = [
     {
@@ -154,8 +174,8 @@ export function mailerPanels(d: Dims): PanelDef[] {
       stack: 0,
       netLabel: "Перед",
     },
-    dustFlap("dust-fl", "Переднее ушко", "front", [inset, 0, 0], 1, dustPoly(H, dust, -1, -1), dusts),
-    dustFlap("dust-fr", "Переднее ушко", "front", [L - inset, 0, 0], -1, dustPoly(H, dust, 1, -1), dusts),
+    dustFlap("dust-fl", "Переднее ушко", "front", [inset, 0, 0], 1, dustPoly(H, dust, -1, -1), dusts, T * 0.4),
+    dustFlap("dust-fr", "Переднее ушко", "front", [L - inset, 0, 0], -1, dustPoly(H, dust, 1, -1), dusts, T * 0.4),
     {
       id: "back",
       name: "Задняя стенка",
@@ -175,12 +195,14 @@ export function mailerPanels(d: Dims): PanelDef[] {
       stack: 0,
       netLabel: "Зад",
     },
-    dustFlap("dust-bl", "Заднее ушко", "back", [inset, 0, 0], 1, dustPoly(H, dust, -1, 1), dusts),
-    dustFlap("dust-br", "Заднее ушко", "back", [L - inset, 0, 0], -1, dustPoly(H, dust, 1, 1), dusts),
+    dustFlap("dust-bl", "Заднее ушко", "back", [inset, 0, 0], 1, dustPoly(H, dust, -1, 1), dusts, T * 0.4),
+    dustFlap("dust-br", "Заднее ушко", "back", [L - inset, 0, 0], -1, dustPoly(H, dust, 1, 1), dusts, T * 0.4),
     end("left", "Левый торец", [0, 0, 0], 1, -1, W, H, ends),
-    rollPanel("left-roll", "Левая закатка", "left", [-H, 0, 0], 1, -1, W, roll, rolls),
+    bridgePanel("left-bridge", "Левая биговка", "left", [-H, 0, 0], 1, -1, W, bridge, bridges),
+    rollPanel("left-roll", "Левая закатка", "left-bridge", [-bridge, 0, 0], 1, -1, W, roll, rolls),
     end("right", "Правый торец", [L, 0, 0], -1, 1, W, H, ends),
-    rollPanel("right-roll", "Правая закатка", "right", [H, 0, 0], -1, 1, W, roll, rolls),
+    bridgePanel("right-bridge", "Правая биговка", "right", [H, 0, 0], -1, 1, W, bridge, bridges),
+    rollPanel("right-roll", "Правая закатка", "right-bridge", [bridge, 0, 0], -1, 1, W, roll, rolls),
     {
       id: "lid",
       name: "Крышка",
@@ -198,6 +220,7 @@ export function mailerPanels(d: Dims): PanelDef[] {
       fill: "lid",
       tone: "lid",
       stack: 0,
+      lift: -T * 0.35,
       netLabel: "Крышка",
     },
     {
@@ -212,7 +235,7 @@ export function mailerPanels(d: Dims): PanelDef[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
-      lift: 0.8,
+      lift: T * 0.55,
       netLabel: "Ушко",
     },
     {
@@ -227,7 +250,7 @@ export function mailerPanels(d: Dims): PanelDef[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
-      lift: 0.8,
+      lift: T * 0.55,
       netLabel: "Ушко",
     },
     {
@@ -242,6 +265,7 @@ export function mailerPanels(d: Dims): PanelDef[] {
       fill: "tuck",
       tone: "flap",
       stack: 0,
+      lift: T * 0.9,
       netLabel: "Клапан",
     },
     {
@@ -256,7 +280,7 @@ export function mailerPanels(d: Dims): PanelDef[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
-      lift: 1.2,
+      lift: T * 0.85,
       netLabel: "Ушко",
     },
     {
@@ -271,7 +295,7 @@ export function mailerPanels(d: Dims): PanelDef[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
-      lift: 1.2,
+      lift: T * 0.85,
       netLabel: "Ушко",
     },
   ];
@@ -291,6 +315,7 @@ export function mailerPanels(d: Dims): PanelDef[] {
         fill: "tuck",
         tone: "flap",
         stack: 0,
+        lift: -T * 0.2,
       },
       {
         id: `lug-r-${index}`,
@@ -304,9 +329,10 @@ export function mailerPanels(d: Dims): PanelDef[] {
         fill: "tuck",
         tone: "flap",
         stack: 0,
+        lift: -T * 0.2,
       },
-      slot(`slot-l-${index}`, y0, y1, 3.2, 8),
-      slot(`slot-r-${index}`, y0, y1, L - 11.2, 8),
+      slot(`slot-l-${index}`, y0, y1, 3.2, slotDepth),
+      slot(`slot-r-${index}`, y0, y1, L - 3.2 - slotDepth, slotDepth),
     );
   });
 
@@ -321,6 +347,7 @@ function dustFlap(
   sign: 1 | -1,
   poly: Pt[],
   angle: (t: number) => number,
+  lift = 0,
 ): PanelDef {
   return {
     id,
@@ -334,6 +361,7 @@ function dustFlap(
     fill: "flap",
     tone: "flap",
     stack: 0,
+    lift,
     netLabel: "Ушко",
   };
 }
@@ -366,6 +394,38 @@ function end(
     tone: "body",
     stack: 0,
     netLabel: "Торец",
+  };
+}
+
+function bridgePanel(
+  id: string,
+  name: string,
+  parent: string,
+  hinge: [number, number, number],
+  sign: 1 | -1,
+  dir: 1 | -1,
+  span: number,
+  length: number,
+  angle: (t: number) => number,
+): PanelDef {
+  return {
+    id,
+    name,
+    parent,
+    hinge,
+    axis: "y",
+    sign,
+    angle,
+    poly: [
+      [0, 0],
+      [0, span],
+      [dir * length, span],
+      [dir * length, 0],
+    ],
+    fill: "lock",
+    tone: "lock",
+    stack: 0,
+    netLabel: "Биговка",
   };
 }
 

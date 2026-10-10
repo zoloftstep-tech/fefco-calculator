@@ -1,15 +1,29 @@
 import { phase, type PanelDef } from "@/lib/fold";
 import type { Pt } from "@/lib/math";
 import type { Dims } from "@/lib/fefco-types";
+import { resolveBoard } from "@/lib/params/board";
 
 /** Inner wall stops just above the floor; hook tongues drop into the base slots. */
 export function trayMetrics(d: Dims) {
-  const taper = Math.min(d.W * 0.45, d.L / 2 - 2);
-  const wall = Math.max(d.H - 8, d.H * 0.78);
-  const tongue = Math.min(24, Math.max(14, d.H * 0.38));
-  const tongues = d.L < 140 ? 1 : 2;
-  const half = Math.min(12, Math.max(7, d.L * 0.045));
-  return { taper: Math.max(taper, 8), wall: Math.max(wall, 8), tongue, tongues, half };
+  const { L, W, H, T, slotKerf } = resolveBoard(d);
+  const taper = Math.min(W * 0.45, L / 2 - 2);
+  const wall = Math.max(H - 8, H * 0.78);
+  const tongue = Math.min(24, Math.max(14, H * 0.38 + T * 0.25));
+  const tongues = L < 140 ? 1 : 2;
+  const half = Math.min(12, Math.max(7, L * 0.045));
+  const slotDepth = Math.max(14, Math.min(18, 12 + slotKerf * 2));
+  return {
+    taper: Math.max(taper, 8),
+    wall: Math.max(wall, 8),
+    tongue,
+    tongues,
+    half,
+    T,
+    slotKerf,
+    slotDepth,
+    slotYFront: 12,
+    slotYBack: (y: number) => y - 28,
+  };
 }
 
 export function tongueCenters(length: number, count: number) {
@@ -57,13 +71,14 @@ function slots(
   count: number,
   half: number,
   depth: number,
+  kerf: number,
 ): PanelDef[] {
   const panels: PanelDef[] = [];
   tongueCenters(length, count).forEach((center, index) => {
     const x0 = center - half * 0.72;
     const x1 = center + half * 0.72;
     const y0 = y;
-    const y1 = y + depth;
+    const y1 = y + Math.max(depth, kerf * 4);
     panels.push({
       id: `${id}-${index}`,
       name,
@@ -88,11 +103,12 @@ function slots(
 
 export function trayPanels(d: Dims): PanelDef[] {
   const { L, W, H } = d;
-  const { taper, wall, tongue, tongues, half } = trayMetrics(d);
+  const { taper, wall, tongue, tongues, half, T, slotKerf, slotDepth, slotYFront, slotYBack } = trayMetrics(d);
   const ends = (t: number) => phase(t, 0.02, 0.22, 0, 90);
   const ears = (t: number) => phase(t, 0.14, 0.36, 0, 94);
   const longs = (t: number) => phase(t, 0.28, 0.5, 0, 90);
   const locks = (t: number) => phase(t, 0.44, 0.7, 0, 174);
+  /** Hook heads drop into the floor slots (angle tuned against check-folds seating). */
   const tabs = (t: number) => phase(t, 0.66, 0.98, 0, 64);
 
   const floor: PanelDef = {
@@ -149,6 +165,7 @@ export function trayPanels(d: Dims): PanelDef[] {
       fill: "tuck",
       tone: "flap",
       stack: 0,
+      lift: T * 0.2,
       netLabel: "Язычки",
     },
     wallPanel("back", "Задняя стенка", [0, W, 0], 1, 1, L, H, longs, "back", "Стенка"),
@@ -183,6 +200,7 @@ export function trayPanels(d: Dims): PanelDef[] {
       fill: "tuck",
       tone: "flap",
       stack: 0,
+      lift: T * 0.2,
     },
     endPanel("left", "Левый торец", [0, 0, 0], 1, -1, W, H, ends),
     endPanel("right", "Правый торец", [L, 0, 0], -1, 1, W, H, ends),
@@ -190,8 +208,8 @@ export function trayPanels(d: Dims): PanelDef[] {
     ear("ear-lb", "Косынка", "left", [0, W, 0], 1, taperPoly(H, taper, -1, 1), ears),
     ear("ear-rf", "Косынка", "right", [0, 0, 0], -1, taperPoly(H, taper, 1, -1), ears),
     ear("ear-rb", "Косынка", "right", [0, W, 0], 1, taperPoly(H, taper, 1, 1), ears),
-    ...slots("slot-f", "Прорезь", 12, L, tongues, half, 16),
-    ...slots("slot-b", "Прорезь", W - 28, L, tongues, half, 16),
+    ...slots("slot-f", "Прорезь", slotYFront, L, tongues, half, slotDepth, slotKerf),
+    ...slots("slot-b", "Прорезь", slotYBack(W), L, tongues, half, slotDepth, slotKerf),
   ];
 }
 
@@ -267,6 +285,7 @@ function ear(
   sign: 1 | -1,
   poly: Pt[],
   angle: (t: number) => number,
+  lift = 0,
 ): PanelDef {
   return {
     id,
@@ -280,5 +299,6 @@ function ear(
     fill: "flap",
     tone: "flap",
     stack: 0,
+    lift,
   };
 }

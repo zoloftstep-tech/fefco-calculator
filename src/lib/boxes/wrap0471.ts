@@ -1,34 +1,42 @@
 import { phase, type PanelDef } from "@/lib/fold";
 import type { Pt } from "@/lib/math";
 import type { Dims } from "@/lib/fefco-types";
+import { resolveBoard } from "@/lib/params/board";
 
 export function wrap471Metrics(d: Dims) {
-  const flap = Math.min(d.H * 0.62, Math.max(28, d.W * 0.42));
-  const hook = Math.max(14, Math.min(22, d.H * 0.22));
-  const slotW = Math.min(22, Math.max(12, d.W * 0.16));
-  const slotH = Math.min(16, Math.max(10, d.H * 0.18));
-  return { flap, hook, slotW, slotH };
+  const { W, H, T, tuckClearance, slotKerf } = resolveBoard(d);
+  const flap = Math.min(H * 0.62, Math.max(28, W * 0.42));
+  const hook = Math.max(14, Math.min(22, H * 0.22)) + tuckClearance * 0.2;
+  const slotW = Math.min(22, Math.max(12, W * 0.16)) + slotKerf * 0.5;
+  const slotH = Math.min(16, Math.max(10, H * 0.18)) + T * 0.4;
+  return { flap, hook, slotW, slotH, T, tuckClearance };
 }
 
+/** Rounded locking flap: more vertices than a 6-gon so the silhouette reads as an arc. */
 function roundedFlap(length: number, depth: number): Pt[] {
-  const radius = Math.min(depth * 0.42, length * 0.14, 36);
+  const r = Math.min(depth * 0.42, length * 0.14, 36);
   return [
-    [radius, 0],
-    [length - radius, 0],
-    [length - radius * 0.25, depth * 0.38],
-    [length * 0.9, depth],
-    [length * 0.1, depth],
-    [radius * 0.25, depth * 0.38],
+    [r, 0],
+    [length - r, 0],
+    [length - r * 0.2, depth * 0.28],
+    [length * 0.94, depth * 0.62],
+    [length * 0.86, depth],
+    [length * 0.14, depth],
+    [length * 0.06, depth * 0.62],
+    [r * 0.2, depth * 0.28],
   ];
 }
 
 function hookPoly(depth: number, reach: number, dir: 1 | -1): Pt[] {
-  const inset = depth * 0.22;
+  const inset = depth * 0.18;
+  const neck = reach * 0.55;
   return [
     [0, inset],
     [0, depth - inset],
-    [dir * reach, depth * 0.72],
-    [dir * reach, depth * 0.28],
+    [dir * neck, depth * 0.78],
+    [dir * reach, depth * 0.62],
+    [dir * reach, depth * 0.38],
+    [dir * neck, depth * 0.22],
   ];
 }
 
@@ -39,9 +47,9 @@ export function wrap471Panels(d: Dims): PanelDef[] {
   const ends = (t: number) => phase(t, 0.14, 0.32, 0, 90);
   const lid = (t: number) => phase(t, 0.36, 0.54, 0, 90);
   const flap = (t: number) => phase(t, 0.56, 0.74, 0, 102);
-  const hooks = (t: number) => phase(t, 0.76, 1, 0, 94);
+  const hooks = (t: number) => phase(t, 0.76, 1, 0, 96);
 
-  const slotY = 6;
+  const slotY = Math.max(4, m.T * 2);
   const slotTop = H * 0.9;
   const slotBot = slotTop - m.slotH;
 
@@ -88,6 +96,7 @@ export function wrap471Panels(d: Dims): PanelDef[] {
       fill: "lid",
       tone: "lid",
       stack: 0,
+      lift: -m.T * 0.3,
       netLabel: "Крышка",
     },
     {
@@ -102,11 +111,11 @@ export function wrap471Panels(d: Dims): PanelDef[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
-      lift: 1.4,
+      lift: m.T * 0.95,
       netLabel: "Клапан",
     },
-    hook("hook-l", "Левый крючок", "lid-front", [0, 0, 0], 1, hookPoly(m.flap * 0.7, m.hook, -1), hooks),
-    hook("hook-r", "Правый крючок", "lid-front", [L, 0, 0], -1, hookPoly(m.flap * 0.7, m.hook, 1), hooks),
+    hook("hook-l", "Левый крючок", "lid-front", [0, 0, 0], 1, hookPoly(m.flap * 0.7, m.hook, -1), hooks, m.T * 0.8),
+    hook("hook-r", "Правый крючок", "lid-front", [L, 0, 0], -1, hookPoly(m.flap * 0.7, m.hook, 1), hooks, m.T * 0.8),
   ];
 }
 
@@ -192,6 +201,7 @@ function hook(
   sign: 1 | -1,
   poly: Pt[],
   angle: (t: number) => number,
+  lift = 0,
 ): PanelDef {
   return {
     id,
@@ -205,7 +215,7 @@ function hook(
     fill: "tuck",
     tone: "flap",
     stack: 0,
-    lift: 1.2,
+    lift,
     netLabel: "Крючок",
   };
 }

@@ -22,7 +22,7 @@ function faceMap(id: BoxId, dims: Dims, t: number, yaw = 0) {
   return Object.fromEntries(getFaces(id, dims, t, yaw).map((face) => [face.id, face]));
 }
 
-const d0201: Dims = { L: 300, W: 200, H: 150, G: 30 };
+const d0201: Dims = { L: 300, W: 200, H: 150, G: 30, T: 1.5 };
 for (const yaw of [0, 0.4, 1.2, 2.2, 3.5, 4.6, 5.6]) {
   const shut = faceMap("0201", d0201, 1, yaw);
   assert(shut["flap-front"].stack > shut["flap-left"].stack, `closed front above left yaw ${yaw.toFixed(2)}`);
@@ -45,7 +45,7 @@ assert(shutFront[1] > 10 && shutFront[1] < 190, `0201 front flap closes y=${shut
 assert(Math.abs(shutFront[2] - 150) < 2, `0201 front flap at top z=${shutFront[2].toFixed(1)}`);
 assert(shutLeft[2] < shutFront[2] - 0.4, `small flap sits under big z=${shutLeft[2].toFixed(2)}`);
 
-const wide = faceMap("0201", { L: 400, W: 260, H: 80, G: 20 }, 1, 0);
+const wide = faceMap("0201", { L: 400, W: 260, H: 80, G: 20, T: 1.5 }, 1, 0);
 const wideFront = center(wide["flap-front"].points);
 assert(Math.abs(wideFront[1] - 65) < 2, `flap depth follows width, y=${wideFront[1].toFixed(1)}`);
 
@@ -72,10 +72,10 @@ function dump(id: BoxId, dims: Dims) {
   );
 }
 
-const d422: Dims = { L: 280, W: 200, H: 60, G: 0 };
-const d427: Dims = { L: 300, W: 200, H: 80, G: 0 };
-const d215: Dims = { L: 300, W: 200, H: 140, G: 30 };
-const d470: Dims = { L: 310, W: 150, H: 100, G: 0 };
+const d422: Dims = { L: 280, W: 200, H: 60, G: 0, T: 1.5 };
+const d427: Dims = { L: 300, W: 200, H: 80, G: 0, T: 1.5 };
+const d215: Dims = { L: 300, W: 200, H: 140, G: 30, T: 1.5 };
+const d470: Dims = { L: 310, W: 150, H: 100, G: 0, T: 1.5 };
 
 dump("0422", d422);
 dump("0427", d427);
@@ -118,8 +118,14 @@ assert(Math.min(...box422["front-tabs"].points.map((p) => p[1])) > 4, "front ton
 }
 
 const box427 = faceMap("0427", d427, 1);
+assert(center(box427["left-bridge"].points)[0] > 1, "0427 left bridge inside");
+assert(center(box427["right-bridge"].points)[0] < 299, "0427 right bridge inside");
 assert(center(box427["left-roll"].points)[0] > 1, "0427 left roll inside");
 assert(center(box427["right-roll"].points)[0] < 299, "0427 right roll inside");
+assert(
+  getNet("0427", d427).panels.some((panel) => panel.label === "Биговка"),
+  "0427 draws the double-crease bridge",
+);
 assert(center(box427.lid.points)[2] > 70, "0427 lid up");
 assert(center(box427.tuck.points)[1] > 1 && center(box427.tuck.points)[2] < 80, "0427 tuck inside front");
 assert(center(box427["lug-l-0"].points)[2] < 20, "0427 lug near the floor");
@@ -208,11 +214,12 @@ assert(Math.min(...box470["lid-front"].points.map((p) => p[1])) >= -1, "0470 lid
 }
 
 const net215 = getNet("0215", d215);
-assert(Math.abs(net215.width - (30 + 2 * (300 + 200))) < 1, `0215 blank width ${net215.width}`);
+/** Girth [0,1,1,2]·T adds +4T to the blank width. */
+assert(Math.abs(net215.width - (30 + 2 * (300 + 200) + 4 * 1.5)) < 1, `0215 blank width ${net215.width}`);
 assert(net215.panels.some((panel) => panel.tone === "glue"), "0215 has a glue flap");
 assert(net215.panels.some((panel) => panel.tone === "lid"), "0215 has a lid panel");
 
-const d471 = { L: 300, W: 160, H: 90, G: 0 };
+const d471 = { L: 300, W: 160, H: 90, G: 0, T: 1.5 };
 const box471 = faceMap("0471", d471, 1);
 assert(center(box471.lid.points)[2] > 80, "0471 lid up");
 assert(Math.min(...box471["lid-front"].points.map((p) => p[1])) >= -1, "0471 rounded flap tucks inside");
