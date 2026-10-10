@@ -26,18 +26,18 @@ function rankClosed(face: WorldFace, low: number, high: number, rank: number) {
 export function sleeveFaces(d: Dims, t: number): WorldFace[] {
   const { L, W, H } = d;
   const m = sleeveMetrics(d);
-  const dustA = (u: number) => phase(u, 0, 0.16, 0, 90);
-  const femaleA = (u: number) => phase(u, 0.18, 0.36, 0, 90);
-  const maleA = (u: number) => phase(u, 0.38, 0.56, 0, 92);
-  const topA = (u: number) => phase(u, 0.58, 0.72, 0, 90);
-  const lidA = (u: number) => phase(u, 0.74, 0.88, 0, 90);
-  const tuckA = (u: number) => phase(u, 0.88, 1, 0, 106);
+  const femaleA = (u: number) => phase(u, 0.02, 0.2, 0, 90);
+  const dustA = (u: number) => phase(u, 0.22, 0.38, 0, 90);
+  const maleA = (u: number) => phase(u, 0.4, 0.56, 0, 92);
+  const topA = (u: number) => phase(u, 0.58, 0.7, 0, 90);
+  const lidA = (u: number) => phase(u, 0.72, 0.86, 0, 90);
+  const tuckA = (u: number) => phase(u, 0.86, 1, 0, 90);
   const fixed = () => 90;
-  const liftDust = m.T * 0.85;
-  const liftFemale = m.T * 1.85;
-  const liftMale = m.T * 2.9;
+  const liftFemale = m.T * 0.8;
+  const liftDust = m.T * 1.9;
+  const liftMale = m.T * 3.1;
   const liftLid = -m.T * 1.7;
-  const liftTuck = m.T * 0.95;
+  const liftTuck = -Math.max(1.6, m.T * 1.15);
 
   const panels: PanelDef[] = [
     {
@@ -207,8 +207,8 @@ export function sleeveFaces(d: Dims, t: number): WorldFace[] {
 
   const faces = facesFrom(panels, t).filter((face) => face.id !== "floor");
   for (const face of faces) {
-    if (face.id === "bot-left" || face.id === "bot-right") rankClosed(face, -2, 6, 1);
-    if (face.id === "bot-front" || face.id === "bot-slot") rankClosed(face, -2, 8, 2);
+    if (face.id === "bot-front" || face.id === "bot-slot") rankClosed(face, -2, 8, 1);
+    if (face.id === "bot-left" || face.id === "bot-right") rankClosed(face, -2, 8, 2);
     if (face.id === "bot-back") rankClosed(face, -2, 8, 3);
     if (face.id === "top-left" || face.id === "top-right") rankClosed(face, H - 8, H + 4, 4);
     if (face.id === "lid") rankClosed(face, H - 4, H + 4, 5);

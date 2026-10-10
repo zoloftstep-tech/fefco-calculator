@@ -1,8 +1,9 @@
 import { phase, type PanelDef } from "@/lib/fold";
-import type { Pt } from "@/lib/math";
+import type { Pt, Vec3 } from "@/lib/math";
 import type { Dims } from "@/lib/fefco-types";
 import { resolveBoard } from "@/lib/params/board";
 import { buildToeEnds, TOE_LUG_FOLD, toeLugSpans } from "@/lib/boxes/parts/toe";
+import { dropInside, inwardLeft, inwardRight, slideIntoPocket } from "@/lib/clearance";
 
 const BRIDGE_FOLD = 90;
 const ROLL_FOLD = 90;
@@ -12,8 +13,8 @@ export function mailerMetrics(d: Dims) {
   const { H, W, T, bridge, tuckClearance, slotKerf } = board;
   /** Catalog TD ≈ board-linked lug depth. */
   const lug = Math.max(12, Math.min(18, H * 0.2 + T));
-  /** Catalog tuck ≈ full front height with clearance. */
-  const tuck = Math.min(H * 0.95, Math.max(20, H * 0.85)) + tuckClearance * 0.2;
+  /** Cover the front, stopping just short of the floor. The old 0.95 cap never won against 0.85H. */
+  const tuck = Math.min(H - Math.max(4, T * 2), Math.max(20, H * 0.96));
   /** Catalog lid tuck-in ears ≈ H (TIR1). */
   const ear = Math.min(H * 0.98, W * 0.5);
   /** Tapered front/back inset (catalog DXT-style shoulders). */
@@ -118,16 +119,25 @@ export function mailerPanels(d: Dims): PanelDef[] {
   const { lug, tuck, ear, inset, dust, roll, bridge, T, notch, slotDepth, lugCount } = m;
 
   const walls = (t: number) => phase(t, 0.02, 0.1, 0, 90);
-  const dusts = (t: number) => phase(t, 0.08, 0.16, 0, 90);
+  const dusts = (t: number) => phase(t, 0.06, 0.14, 0, 90);
   const ends = (t: number) => phase(t, 0.14, 0.24, 0, 90);
   const bridges = (t: number) => phase(t, 0.2, 0.3, 0, BRIDGE_FOLD);
   const rolls = (t: number) => phase(t, 0.28, 0.38, 0, ROLL_FOLD);
   const lugs = (t: number) => phase(t, 0.36, 0.44, 0, TOE_LUG_FOLD);
+  // Rostislav: bend lid ears → lower lid (ears still outside) → ears enter →
+  // bend valve ears → valve covers the front → valve ears into the pocket.
   const lid = (t: number) => phase(t, 0.56, 0.68, 0, 90);
-  const ears = (t: number) => (t <= 0.68 ? phase(t, 0.44, 0.56, 0, 48) : phase(t, 0.68, 0.8, 48, 100));
-  const tuckAngle = (t: number) => phase(t, 0.86, 0.94, 0, 104);
-  const flapEars = (t: number) => (t <= 0.94 ? phase(t, 0.78, 0.86, 0, 42) : phase(t, 0.94, 1, 42, 94));
+  const ears = (t: number) => (t <= 0.68 ? phase(t, 0.44, 0.56, 0, 58) : phase(t, 0.68, 0.8, 58, 90));
+  const tuckAngle = (t: number) => phase(t, 0.86, 0.94, 0, 90);
+  const flapEars = (t: number) => (t <= 0.94 ? phase(t, 0.8, 0.86, 0, 46) : phase(t, 0.94, 1, 46, 90));
   const side = Math.max(0, T * 0.5);
+  const rollIn = bridge + 0.2;
+  const inboard = bridge + Math.max(1.6, T * 1.4);
+  const frontGap = -Math.max(1.6, T * 1.15);
+  const lidEarRide = (inward: (point: Vec3) => number) => (t: number, points: Vec3[]): Vec3 =>
+    t < 0.56 ? [0, 0, 0] : dropInside(points, H, rollIn + 0.8, inward);
+  const flapEarRide = (inward: (point: Vec3) => number) => (t: number, points: Vec3[]): Vec3 =>
+    t < 0.8 || t > 0.998 ? [0, 0, 0] : slideIntoPocket(points, rollIn, inward);
 
   const panels: PanelDef[] = [
     {
@@ -230,7 +240,8 @@ export function mailerPanels(d: Dims): PanelDef[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
-      lift: T * 0.55,
+      lift: (t) => inboard * Math.sin((Math.abs(ears(t)) * Math.PI) / 180),
+      ride: lidEarRide(inwardLeft),
       netLabel: "Ушко",
     },
     {
@@ -245,7 +256,8 @@ export function mailerPanels(d: Dims): PanelDef[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
-      lift: T * 0.55,
+      lift: (t) => inboard * Math.sin((Math.abs(ears(t)) * Math.PI) / 180),
+      ride: lidEarRide(inwardRight(L)),
       netLabel: "Ушко",
     },
     {
@@ -260,7 +272,7 @@ export function mailerPanels(d: Dims): PanelDef[] {
       fill: "tuck",
       tone: "flap",
       stack: 0,
-      lift: T * 0.9,
+      lift: frontGap,
       netLabel: "Клапан",
     },
     {
@@ -271,11 +283,12 @@ export function mailerPanels(d: Dims): PanelDef[] {
       axis: "y",
       sign: 1,
       angle: flapEars,
-      poly: tuckEarPoly(tuck, Math.min(H * 0.55, W * 0.28), -1),
+      poly: tuckEarPoly(tuck, Math.min(H * 0.42, W * 0.22), -1),
       fill: "flap",
       tone: "flap",
       stack: 0,
-      lift: T * 0.85,
+      lift: Math.max(1.2, T * 0.85),
+      ride: flapEarRide(inwardLeft),
       netLabel: "Ушко",
     },
     {
@@ -286,11 +299,12 @@ export function mailerPanels(d: Dims): PanelDef[] {
       axis: "y",
       sign: -1,
       angle: flapEars,
-      poly: tuckEarPoly(tuck, Math.min(H * 0.55, W * 0.28), 1),
+      poly: tuckEarPoly(tuck, Math.min(H * 0.42, W * 0.22), 1),
       fill: "flap",
       tone: "flap",
       stack: 0,
-      lift: T * 0.85,
+      lift: Math.max(1.2, T * 0.85),
+      ride: flapEarRide(inwardRight(L)),
       netLabel: "Ушко",
     },
   ];

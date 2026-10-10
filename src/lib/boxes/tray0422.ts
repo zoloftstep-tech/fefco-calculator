@@ -104,12 +104,12 @@ function slots(
 export function trayPanels(d: Dims): PanelDef[] {
   const { L, W, H } = d;
   const { taper, wall, tongue, tongues, half, T, slotKerf, slotDepth, slotYFront, slotYBack } = trayMetrics(d);
-  const ends = (t: number) => phase(t, 0.02, 0.22, 0, 90);
-  const ears = (t: number) => phase(t, 0.14, 0.36, 0, 94);
-  const longs = (t: number) => phase(t, 0.28, 0.5, 0, 90);
-  const locks = (t: number) => phase(t, 0.44, 0.7, 0, 174);
-  /** Hook heads drop into the floor slots (angle tuned against check-folds seating). */
-  const tabs = (t: number) => phase(t, 0.66, 0.98, 0, 64);
+  const ends = (t: number) => phase(t, 0.02, 0.18, 0, 90);
+  const ears = (t: number) => phase(t, 0.16, 0.3, 0, 90);
+  const longs = (t: number) => phase(t, 0.32, 0.48, 0, 90);
+  const locks = (t: number) => phase(t, 0.5, 0.68, 0, 174);
+  /** Hook heads drop into the floor slots after the return is down. */
+  const tabs = (t: number) => phase(t, 0.7, 0.98, 0, 64);
 
   const floor: PanelDef = {
     id: "floor",
@@ -204,10 +204,10 @@ export function trayPanels(d: Dims): PanelDef[] {
     },
     endPanel("left", "Левый торец", [0, 0, 0], 1, -1, W, H, ends),
     endPanel("right", "Правый торец", [L, 0, 0], -1, 1, W, H, ends),
-    ear("ear-lf", "Косынка", "left", [0, 0, 0], -1, taperPoly(H, taper, -1, -1), ears),
-    ear("ear-lb", "Косынка", "left", [0, W, 0], 1, taperPoly(H, taper, -1, 1), ears),
-    ear("ear-rf", "Косынка", "right", [0, 0, 0], -1, taperPoly(H, taper, 1, -1), ears),
-    ear("ear-rb", "Косынка", "right", [0, W, 0], 1, taperPoly(H, taper, 1, 1), ears),
+    ear("ear-lf", "Косынка", "left", [0, 0, 0], -1, taperPoly(H, taper, -1, -1), ears, T * 0.5),
+    ear("ear-lb", "Косынка", "left", [0, W, 0], 1, taperPoly(H, taper, -1, 1), ears, T * 0.5),
+    ear("ear-rf", "Косынка", "right", [0, 0, 0], -1, taperPoly(H, taper, 1, -1), ears, T * 0.5),
+    ear("ear-rb", "Косынка", "right", [0, W, 0], 1, taperPoly(H, taper, 1, 1), ears, T * 0.5),
     ...slots("slot-f", "Прорезь", slotYFront, L, tongues, half, slotDepth, slotKerf),
     ...slots("slot-b", "Прорезь", slotYBack(W), L, tongues, half, slotDepth, slotKerf),
   ];
