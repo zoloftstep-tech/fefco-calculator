@@ -6,7 +6,7 @@ export function wrapMetrics(d: Dims) {
   const ear = Math.min(d.H * 0.92, d.W * 0.46, d.L * 0.46);
   const lip = Math.max(14, Math.min(d.H * 0.48, d.W * 0.7));
   const wing = Math.min(d.H * 0.9, d.W * 0.95);
-  const frontFlap = Math.max(16, d.H * 0.34);
+  const frontFlap = Math.max(16, Math.min(d.H * 0.4, 46));
   const tongue = Math.min(20, Math.max(12, d.H * 0.2));
   const tongueW = Math.min(d.L * 0.28, 90);
   return { ear, lip, wing, frontFlap, tongue, tongueW };
@@ -32,9 +32,9 @@ export function wrapPanels(d: Dims): PanelDef[] {
   const back = (t: number) => phase(t, 0.28, 0.44, 0, 90);
   const backEars = (t: number) => phase(t, 0.38, 0.54, 0, 96);
   const lid = (t: number) => phase(t, 0.5, 0.7, 0, 90);
-  const wings = (t: number) => phase(t, 0.62, 0.8, 0, 78);
-  const lidFront = (t: number) => phase(t, 0.74, 0.9, 0, 86);
-  const tongue = (t: number) => phase(t, 0.86, 1, 0, 42);
+  const wings = (t: number) => phase(t, 0.62, 0.8, 0, 112);
+  const lidFront = (t: number) => phase(t, 0.74, 0.9, 0, 108);
+  const tongue = (t: number) => phase(t, 0.86, 1, 0, 52);
 
   const notch = m.tongueW * 0.55;
   const lipPoly: Pt[] = [

@@ -2,13 +2,20 @@ import { phase, type PanelDef } from "@/lib/fold";
 import type { Pt } from "@/lib/math";
 import type { Dims } from "@/lib/fefco-types";
 
-/** Long-wall return stops short of the floor; tongues finish the lock. */
+/** Inner wall stops just above the floor; hook tongues drop into the base slots. */
 export function trayMetrics(d: Dims) {
   const taper = Math.min(d.W * 0.45, d.L / 2 - 2);
-  const wall = Math.min(d.H * 0.9, d.H - 4);
-  const tongue = Math.min(22, Math.max(11, d.H * 0.34));
+  const wall = Math.max(d.H - 8, d.H * 0.78);
+  const tongue = Math.min(24, Math.max(14, d.H * 0.38));
   const tongues = d.L < 140 ? 1 : 2;
-  return { taper: Math.max(taper, 8), wall: Math.max(wall, 8), tongue, tongues };
+  const half = Math.min(12, Math.max(7, d.L * 0.045));
+  return { taper: Math.max(taper, 8), wall: Math.max(wall, 8), tongue, tongues, half };
+}
+
+export function tongueCenters(length: number, count: number) {
+  if (count <= 1) return [length / 2];
+  const inset = Math.max(22, Math.min(length * 0.16, 48));
+  return [inset, length - inset];
 }
 
 function taperPoly(height: number, depth: number, up: 1 | -1, dir: 1 | -1): Pt[] {
@@ -22,19 +29,23 @@ function taperPoly(height: number, depth: number, up: 1 | -1, dir: 1 | -1): Pt[]
   ];
 }
 
-function tonguePoly(length: number, depth: number, count: number, dir: 1 | -1): Pt[] {
-  const margin = Math.max(6, length * 0.08);
-  const usable = Math.max(8, length - margin * 2);
-  const width = Math.min(usable / (count * 2.1), length * 0.2);
-  const pitch = usable / count;
-  const pts: Pt[] = [[margin, 0]];
-  for (let i = 0; i < count; i++) {
-    const center = margin + pitch * (i + 0.5);
-    const x0 = center - width / 2;
-    const x1 = center + width / 2;
-    pts.push([x0, 0], [x0, dir * depth], [x1, dir * depth], [x1, 0]);
+/** Hook: narrow neck through the slot, wider head so it cannot pull back out. */
+function tonguePoly(length: number, depth: number, count: number, half: number, dir: 1 | -1): Pt[] {
+  const pts: Pt[] = [[0, 0]];
+  for (const center of tongueCenters(length, count)) {
+    const neck = half * 0.46;
+    const y1 = dir * depth * 0.38;
+    const y2 = dir * depth;
+    pts.push(
+      [center - neck, 0],
+      [center - half, y1],
+      [center - half * 0.82, y2],
+      [center + half * 0.82, y2],
+      [center + half, y1],
+      [center + neck, 0],
+    );
   }
-  pts.push([length - margin, 0]);
+  pts.push([length, 0]);
   return pts;
 }
 
@@ -44,21 +55,17 @@ function slots(
   y: number,
   length: number,
   count: number,
+  half: number,
   depth: number,
 ): PanelDef[] {
-  const margin = Math.max(6, length * 0.08);
-  const usable = Math.max(8, length - margin * 2);
-  const width = Math.min(usable / (count * 2.1), length * 0.2);
-  const pitch = usable / count;
   const panels: PanelDef[] = [];
-  for (let i = 0; i < count; i++) {
-    const center = margin + pitch * (i + 0.5);
-    const x0 = center - width * 0.38;
-    const x1 = center + width * 0.38;
+  tongueCenters(length, count).forEach((center, index) => {
+    const x0 = center - half * 0.72;
+    const x1 = center + half * 0.72;
     const y0 = y;
     const y1 = y + depth;
     panels.push({
-      id: `${id}-${i}`,
+      id: `${id}-${index}`,
       name,
       parent: "floor",
       hinge: [0, 0, 0],
@@ -75,18 +82,18 @@ function slots(
       tone: "slot",
       stack: -1,
     });
-  }
+  });
   return panels;
 }
 
 export function trayPanels(d: Dims): PanelDef[] {
   const { L, W, H } = d;
-  const { taper, wall, tongue, tongues } = trayMetrics(d);
-  const ends = (t: number) => phase(t, 0.02, 0.24, 0, 90);
-  const ears = (t: number) => phase(t, 0.16, 0.4, 0, 94);
-  const longs = (t: number) => phase(t, 0.34, 0.58, 0, 90);
-  const locks = (t: number) => phase(t, 0.5, 0.78, 0, 168);
-  const tabs = (t: number) => phase(t, 0.72, 0.98, 0, 56);
+  const { taper, wall, tongue, tongues, half } = trayMetrics(d);
+  const ends = (t: number) => phase(t, 0.02, 0.22, 0, 90);
+  const ears = (t: number) => phase(t, 0.14, 0.36, 0, 94);
+  const longs = (t: number) => phase(t, 0.28, 0.5, 0, 90);
+  const locks = (t: number) => phase(t, 0.44, 0.7, 0, 174);
+  const tabs = (t: number) => phase(t, 0.66, 0.98, 0, 64);
 
   const floor: PanelDef = {
     id: "floor",
@@ -138,7 +145,7 @@ export function trayPanels(d: Dims): PanelDef[] {
       axis: "x",
       sign: 1,
       angle: tabs,
-      poly: tonguePoly(L, tongue, tongues, -1),
+      poly: tonguePoly(L, tongue, tongues, half, -1),
       fill: "tuck",
       tone: "flap",
       stack: 0,
@@ -172,7 +179,7 @@ export function trayPanels(d: Dims): PanelDef[] {
       axis: "x",
       sign: -1,
       angle: tabs,
-      poly: tonguePoly(L, tongue, tongues, 1),
+      poly: tonguePoly(L, tongue, tongues, half, 1),
       fill: "tuck",
       tone: "flap",
       stack: 0,
@@ -183,8 +190,8 @@ export function trayPanels(d: Dims): PanelDef[] {
     ear("ear-lb", "Косынка", "left", [0, W, 0], 1, taperPoly(H, taper, -1, 1), ears),
     ear("ear-rf", "Косынка", "right", [0, 0, 0], -1, taperPoly(H, taper, 1, -1), ears),
     ear("ear-rb", "Косынка", "right", [0, W, 0], 1, taperPoly(H, taper, 1, 1), ears),
-    ...slots("slot-f", "Прорезь", 16, L, tongues, 12),
-    ...slots("slot-b", "Прорезь", W - 28, L, tongues, 12),
+    ...slots("slot-f", "Прорезь", 12, L, tongues, half, 16),
+    ...slots("slot-b", "Прорезь", W - 28, L, tongues, half, 16),
   ];
 }
 

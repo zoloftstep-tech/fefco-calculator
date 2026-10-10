@@ -103,8 +103,19 @@ assert(box422["front-lock"] && center(box422["front-lock"].points)[1] > 2, "0422
 assert(center(box422["ear-lf"].points)[1] > 0.5, "0422 front taper inside");
 assert(center(box422["ear-lf"].points)[1] < center(box422["front-lock"].points)[1], "taper between wall and lock");
 assert(Math.min(...box422["ear-rf"].points.map((p) => p[2])) > 5, "right taper stands up");
-assert(Math.min(...box422["front-tabs"].points.map((p) => p[2])) > -2, "front tongues stay near the floor");
-assert(Math.min(...box422["front-tabs"].points.map((p) => p[1])) > 8, "front tongues stay inside");
+assert(Math.min(...box422["front-tabs"].points.map((p) => p[2])) > -1, "front tongues stay near the floor");
+assert(Math.min(...box422["front-tabs"].points.map((p) => p[1])) > 4, "front tongues stay inside");
+{
+  const tongue = box422["front-tabs"].points;
+  const hole = box422["slot-f-0"].points;
+  const overlap =
+    Math.min(...tongue.map((p) => p[0])) < Math.max(...hole.map((p) => p[0])) &&
+    Math.max(...tongue.map((p) => p[0])) > Math.min(...hole.map((p) => p[0])) &&
+    Math.min(...tongue.map((p) => p[1])) < Math.max(...hole.map((p) => p[1])) &&
+    Math.max(...tongue.map((p) => p[1])) > Math.min(...hole.map((p) => p[1])) &&
+    Math.min(...tongue.map((p) => p[2])) < 2;
+  assert(overlap, "0422 tongue head sits in the base slot");
+}
 
 const box427 = faceMap("0427", d427, 1);
 assert(center(box427["left-roll"].points)[0] > 1, "0427 left roll inside");
@@ -120,7 +131,16 @@ assert(center(box427["lug-l-0"].points)[2] < 20, "0427 lug near the floor");
     Math.max(...lug.map((p) => p[0])) > Math.min(...hole.map((p) => p[0]));
   assert(overlap, "0427 lug meets the base slot");
   assert(Math.min(...box427["ear-l"].points.map((p) => p[0])) >= -0.2, "0427 lid ear is inside the end");
+  assert(Math.min(...box427["lug-l-0"].points.map((p) => p[2])) > -1, "0427 lug does not pierce the floor");
+  for (const id of ["dust-fl", "dust-fr", "dust-bl", "dust-br"] as const) {
+    const dust = box427[id].points;
+    assert(dust.every((p) => p[0] > 0 && p[0] < 300 && p[1] > -1 && p[1] < 201), `${id} folds inside`);
+  }
 }
+assert(
+  getNet("0427", d427).panels.filter((panel) => panel.label === "Ушко").length >= 6,
+  "0427 draws both lid ears and the four wall ears",
+);
 
 const box215 = faceMap("0215", d215, 1);
 assert(center(box215["bot-left"].points)[0] > 5 && center(box215["bot-left"].points)[0] < 150, "0215 left dust inside");
@@ -137,7 +157,9 @@ assert(
   Math.max(...box470["ear-lf"].points.map((p) => p[1])) < Math.min(...box470["ear-lb"].points.map((p) => p[1])),
   "0470 end ears leave a gap",
 );
-assert(Math.min(...box470["wing-l"].points.map((p) => p[0])) < -2, "0470 lid wing hangs outside");
+assert(Math.min(...box470["wing-l"].points.map((p) => p[0])) >= -0.5, "0470 lid wing stays inside the end");
+assert(Math.max(...box470["wing-l"].points.map((p) => p[0])) > 8, "0470 lid wing tucks into the box");
+assert(Math.min(...box470["lid-front"].points.map((p) => p[1])) >= -1, "0470 lid flap tucks inside");
 {
   const tongue = box470.tongue.points;
   const lip = box470["front-lip"].points;

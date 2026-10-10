@@ -5,11 +5,12 @@ import type { Dims } from "@/lib/fefco-types";
 const ROLL = 172;
 
 export function mailerMetrics(d: Dims) {
-  const lug = Math.max(8, Math.min(16, d.H * 0.14));
+  const lug = Math.max(12, Math.min(18, d.H * 0.2));
   const tuck = Math.min(d.H * 0.78, Math.max(16, d.W * 0.42));
-  const ear = Math.min(d.H * 0.78, d.L * 0.42);
+  const ear = Math.min(d.H * 0.92, d.W * 0.46);
   const inset = Math.max(7, d.H * 0.1);
-  return { lug, tuck, ear, inset, roll: Math.max(6, d.H - lug) };
+  const dust = Math.min(d.H * 0.42, d.W * 0.22, 36);
+  return { lug, tuck, ear, inset, dust, roll: Math.max(8, d.H - lug) };
 }
 
 /** Locking lugs along an end of length `span`, matching the usual 0/1/2/3 split. */
@@ -55,12 +56,22 @@ function lugPoly(width: number, depth: number, dir: 1 | -1): Pt[] {
 }
 
 function earPoly(span: number, depth: number, dir: 1 | -1): Pt[] {
-  const cut = Math.min(span * 0.14, depth * 0.4);
+  const cut = Math.min(span * 0.16, depth * 0.5);
   return [
     [0, cut],
     [0, span - cut],
-    [dir * depth, span - cut * 1.7],
-    [dir * depth * 0.9, cut * 1.5],
+    [dir * depth, span - cut * 0.4],
+    [dir * depth, cut * 0.4],
+  ];
+}
+
+function dustPoly(height: number, depth: number, dir: 1 | -1, up: 1 | -1): Pt[] {
+  const gap = Math.max(3, height * 0.1);
+  return [
+    [0, up * gap],
+    [0, up * (height - gap)],
+    [dir * depth, up * (height - gap * 1.5)],
+    [dir * depth * 0.82, up * gap * 1.5],
   ];
 }
 
@@ -78,16 +89,17 @@ function tuckPoly(length: number, depth: number): Pt[] {
 
 export function mailerPanels(d: Dims): PanelDef[] {
   const { L, W, H } = d;
-  const { lug, tuck, ear, inset, roll } = mailerMetrics(d);
+  const { lug, tuck, ear, inset, dust, roll } = mailerMetrics(d);
   const spans = lugSpans(W);
 
-  const walls = (t: number) => phase(t, 0.02, 0.18, 0, 90);
-  const ends = (t: number) => phase(t, 0.12, 0.34, 0, 90);
-  const rolls = (t: number) => phase(t, 0.28, 0.52, 0, ROLL);
-  const lugs = (t: number) => phase(t, 0.46, 0.64, 0, 36);
-  const ears = (t: number) => phase(t, 0.55, 0.74, 0, 102);
-  const lid = (t: number) => phase(t, 0.66, 0.86, 0, 90);
-  const tuckAngle = (t: number) => phase(t, 0.82, 1, 0, 104);
+  const walls = (t: number) => phase(t, 0.02, 0.16, 0, 90);
+  const dusts = (t: number) => phase(t, 0.12, 0.28, 0, 90);
+  const ends = (t: number) => phase(t, 0.22, 0.4, 0, 90);
+  const rolls = (t: number) => phase(t, 0.36, 0.58, 0, ROLL);
+  const lugs = (t: number) => phase(t, 0.52, 0.7, 0, 22);
+  const ears = (t: number) => phase(t, 0.62, 0.8, 0, 102);
+  const lid = (t: number) => phase(t, 0.72, 0.9, 0, 90);
+  const tuckAngle = (t: number) => phase(t, 0.86, 1, 0, 104);
 
   const panels: PanelDef[] = [
     {
@@ -128,6 +140,8 @@ export function mailerPanels(d: Dims): PanelDef[] {
       stack: 0,
       netLabel: "Перед",
     },
+    dustFlap("dust-fl", "Переднее ушко", "front", [inset, 0, 0], 1, dustPoly(H, dust, -1, -1), dusts),
+    dustFlap("dust-fr", "Переднее ушко", "front", [L - inset, 0, 0], -1, dustPoly(H, dust, 1, -1), dusts),
     {
       id: "back",
       name: "Задняя стенка",
@@ -147,6 +161,8 @@ export function mailerPanels(d: Dims): PanelDef[] {
       stack: 0,
       netLabel: "Зад",
     },
+    dustFlap("dust-bl", "Заднее ушко", "back", [inset, 0, 0], 1, dustPoly(H, dust, -1, 1), dusts),
+    dustFlap("dust-br", "Заднее ушко", "back", [L - inset, 0, 0], -1, dustPoly(H, dust, 1, 1), dusts),
     end("left", "Левый торец", [0, 0, 0], 1, -1, W, H, ends),
     rollPanel("left-roll", "Левая закатка", "left", [-H, 0, 0], 1, -1, W, roll, rolls),
     end("right", "Правый торец", [L, 0, 0], -1, 1, W, H, ends),
@@ -196,6 +212,7 @@ export function mailerPanels(d: Dims): PanelDef[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
+      netLabel: "Ушко",
     },
     {
       id: "tuck",
@@ -248,6 +265,31 @@ export function mailerPanels(d: Dims): PanelDef[] {
   });
 
   return panels;
+}
+
+function dustFlap(
+  id: string,
+  name: string,
+  parent: string,
+  hinge: [number, number, number],
+  sign: 1 | -1,
+  poly: Pt[],
+  angle: (t: number) => number,
+): PanelDef {
+  return {
+    id,
+    name,
+    parent,
+    hinge,
+    axis: "y",
+    sign,
+    angle,
+    poly,
+    fill: "flap",
+    tone: "flap",
+    stack: 0,
+    netLabel: "Ушко",
+  };
 }
 
 function end(

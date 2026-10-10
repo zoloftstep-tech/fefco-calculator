@@ -125,6 +125,115 @@ function average(face: WorldFace, depth: (p: Vec3) => number) {
   return face.points.reduce((sum, point) => sum + depth(point), 0) / face.points.length;
 }
 
+/** A panel still lying in the blank. A closed lid sits high, so max Z, not the span. */
+function onSheet(face: WorldFace) {
+  let top = -Infinity;
+  for (const point of face.points) top = Math.max(top, point[2]);
+  return top < 6;
+}
+
+function cameraDir(yaw: number): Vec3 {
+  const c = Math.cos(yaw);
+  const s = Math.sin(yaw);
+  return [0.75 * c - 0.86 * s, -0.75 * s - 0.86 * c, 0.687];
+}
+
+function sub(a: Vec3, b: Vec3): Vec3 {
+  return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+}
+
+function dot(a: Vec3, b: Vec3) {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+function planeOf(points: Vec3[], dir: Vec3) {
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i];
+    const b = points[(i + 1) % points.length];
+    x += (a[1] - b[1]) * (a[2] + b[2]);
+    y += (a[2] - b[2]) * (a[0] + b[0]);
+    z += (a[0] - b[0]) * (a[1] + b[1]);
+  }
+  const toward = dot([x, y, z], dir) >= 0 ? 1 : -1;
+  return { n: [x * toward, y * toward, z * toward] as Vec3, p: points[0] };
+}
+
+function sideOf(points: Vec3[], plane: { n: Vec3; p: Vec3 }, sign: 1 | -1) {
+  return points.every((point) => sign * dot(plane.n, sub(point, plane.p)) > 0.8);
+}
+
+type ScreenBox = { minX: number; maxX: number; minY: number; maxY: number };
+
+function screenBox(points: [number, number][]): ScreenBox {
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const [x, y] of points) {
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+  }
+  return { minX, maxX, minY, maxY };
+}
+
+function boxesOverlap(a: ScreenBox, b: ScreenBox) {
+  return a.minX <= b.maxX && b.minX <= a.maxX && a.minY <= b.maxY && b.minY <= a.maxY;
+}
+
+function orderFaces(
+  faces: WorldFace[],
+  screen: (p: Vec3) => [number, number],
+  depth: (p: Vec3) => number,
+  yaw: number,
+  flatSheet: boolean,
+) {
+  const dir = cameraDir(yaw);
+  const items = faces.map((face) => ({
+    face,
+    box: screenBox(face.points.map(screen)),
+    plane: planeOf(face.points, dir),
+    far: Math.min(...face.points.map(depth)),
+    near: Math.max(...face.points.map(depth)),
+  }));
+  const group = (face: WorldFace) => face.stack * 10 + (onSheet(face) ? 0 : 1);
+  items.sort((a, b) => {
+    if (a.face.stack !== b.face.stack) return a.face.stack - b.face.stack;
+    if (flatSheet) return a.face.id.localeCompare(b.face.id);
+    const sheet = (onSheet(a.face) ? 0 : 1) - (onSheet(b.face) ? 0 : 1);
+    if (sheet !== 0) return sheet;
+    const delta = average(a.face, depth) - average(b.face, depth);
+    return Math.abs(delta) > 0.05 ? delta : a.face.id.localeCompare(b.face.id);
+  });
+  if (flatSheet) return items.map((item) => item.face);
+
+  let swaps = 0;
+  const limit = items.length * items.length;
+  for (let i = 0; i < items.length && swaps < limit; i++) {
+    for (let j = i + 1; j < items.length; j++) {
+      if (group(items[i].face) !== group(items[j].face)) break;
+      if (!boxesOverlap(items[i].box, items[j].box)) continue;
+      if (items[i].near < items[j].far - 0.5) continue;
+      const iInFront = sideOf(items[i].face.points, items[j].plane, 1);
+      const jBehind = sideOf(items[j].face.points, items[i].plane, -1);
+      const iBehind = sideOf(items[i].face.points, items[j].plane, -1);
+      const jInFront = sideOf(items[j].face.points, items[i].plane, 1);
+      if ((iInFront || jBehind) && !(iBehind || jInFront)) {
+        const [item] = items.splice(i, 1);
+        items.splice(j, 0, item);
+        swaps += 1;
+        i -= 1;
+        break;
+      }
+    }
+  }
+  return items.map((item) => item.face);
+}
+
 export function ModelView({
   faces,
   fit,
@@ -151,12 +260,7 @@ export function ModelView({
 
   const zs = faces.flatMap((face) => face.points.map((p) => p[2]));
   const flatSheet = zs.length === 0 || Math.max(...zs) - Math.min(...zs) < 1.2;
-  const ordered = [...faces].sort((a, b) => {
-    if (a.stack !== b.stack) return a.stack - b.stack;
-    if (flatSheet) return a.id.localeCompare(b.id);
-    const delta = average(a, depth) - average(b, depth);
-    return Math.abs(delta) > 0.05 ? delta : a.id.localeCompare(b.id);
-  });
+  const ordered = orderFaces(faces, screen, depth, yaw, flatSheet);
 
   const { L, W, H } = dims;
   const gap = Math.max(22, Math.max(L, W, H) * 0.14);
@@ -222,8 +326,9 @@ export function ModelView({
           <polygon
             points={pts(face.points.map(screen))}
             fill={face.fill === "slot" ? "#24312c" : `url(#${face.fill as FaceFill})`}
+            fillOpacity={1}
             stroke={face.fill === "slot" ? "#24312c" : "#2c3a36"}
-            strokeWidth={face.fill === "slot" ? 0.6 : 1.05}
+            strokeWidth={face.fill === "slot" ? 0.6 : 1.15}
             strokeLinejoin="round"
           />
         </g>
