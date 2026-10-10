@@ -58,7 +58,14 @@ export type PanelDef = {
   stack: number;
   netLabel?: string;
   /** Millimetres along the panel normal. Folded view only, so the net stays flat. */
-  lift?: number;
+  lift?: number | ((t: number) => number);
+  /**
+   * World-space correction after the hinge chain. Used so an ear can travel
+   * around a wall (above the rim, or through the open front of a pocket)
+   * instead of rotating through the board. Must be [0,0,0] on the flat net
+   * and at the seated pose. Receives the uncorrected world points.
+   */
+  ride?: (t: number, points: Vec3[]) => Vec3;
 };
 
 type Xform = (p: Vec3) => Vec3;
@@ -76,7 +83,8 @@ export function xforms(panels: PanelDef[], t: number, inheritLift = false) {
     if (!panel) throw new Error(`Нет панели ${id}`);
     const parent = panel.parent ? build(panel.parent) : identity;
     const rad = (panel.sign * panel.angle(t) * Math.PI) / 180;
-    const extra = inheritLift ? (panel.lift ?? 0) + (panel.fill === "slot" ? 0.7 : 0) : 0;
+    const lift = inheritLift ? (typeof panel.lift === "function" ? panel.lift(t) : (panel.lift ?? 0)) : 0;
+    const extra = lift + (inheritLift && panel.fill === "slot" ? 0.7 : 0);
     const xf: Xform = (local) => {
       const lifted: Vec3 = extra ? [local[0], local[1], local[2] + extra] : local;
       const rotated = panel.axis === "x" ? rotX(lifted, rad) : rotY(lifted, rad);
@@ -94,10 +102,14 @@ export function facesFrom(panels: PanelDef[], t: number): WorldFace[] {
   const map = xforms(panels, t, true);
   return panels.map((panel) => {
     const xf = map.get(panel.id)!;
+    const raw = panel.poly.map(([x, y]) => xf([x, y, 0]));
+    const ride = panel.ride?.(t, raw) ?? [0, 0, 0];
+    const points =
+      ride[0] || ride[1] || ride[2] ? raw.map((point) => vadd(point, ride)) : raw;
     return {
       id: panel.id,
       name: panel.name,
-      points: panel.poly.map(([x, y]) => xf([x, y, 0])),
+      points,
       fill: panel.fill,
       stack: panel.stack,
     };

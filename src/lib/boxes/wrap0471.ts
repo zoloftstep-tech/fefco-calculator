@@ -1,8 +1,9 @@
 import { phase, type PanelDef } from "@/lib/fold";
-import type { Pt } from "@/lib/math";
+import type { Pt, Vec3 } from "@/lib/math";
 import type { Dims } from "@/lib/fefco-types";
 import { resolveBoard } from "@/lib/params/board";
-import { buildToeEnds } from "@/lib/boxes/parts/toe";
+import { buildToeEnds, TOE_LUG_FOLD } from "@/lib/boxes/parts/toe";
+import { dropInside, inwardLeft, inwardRight } from "@/lib/clearance";
 
 /**
  * FEFCO 0471 — wrap with rounded locking lid (Essential Image / Opus catalog decode).
@@ -70,10 +71,16 @@ export function wrap471Panels(d: Dims): PanelDef[] {
   const ends = (t: number) => phase(t, 0.1, 0.22, 0, 90);
   const bridges = (t: number) => phase(t, 0.18, 0.28, 0, 90);
   const rolls = (t: number) => phase(t, 0.26, 0.36, 0, 90);
-  const lugs = (t: number) => phase(t, 0.34, 0.44, 0, 88);
-  const lid = (t: number) => phase(t, 0.46, 0.62, 0, 90);
-  const ears = (t: number) => (t <= 0.62 ? phase(t, 0.4, 0.52, 0, 48) : phase(t, 0.62, 0.76, 48, 100));
-  const flap = (t: number) => phase(t, 0.76, 0.92, 0, 104);
+  const lugs = (t: number) => phase(t, 0.34, 0.44, 0, TOE_LUG_FOLD);
+  // Same order as 0427: bend ears, lower the lid while they stay outside, then drop them in.
+  const lid = (t: number) => phase(t, 0.52, 0.64, 0, 90);
+  const ears = (t: number) => (t <= 0.64 ? phase(t, 0.4, 0.52, 0, 56) : phase(t, 0.64, 0.78, 56, 90));
+  const flap = (t: number) => phase(t, 0.8, 0.94, 0, 90);
+  const rollIn = m.bridge + 0.2;
+  const inboard = m.bridge + Math.max(1.6, m.T * 1.4);
+  const frontGap = -Math.max(1.6, m.T * 1.15);
+  const earRide = (inward: (point: Vec3) => number) => (t: number, points: Vec3[]): Vec3 =>
+    t < 0.52 ? [0, 0, 0] : dropInside(points, H, rollIn + 0.8, inward);
 
   return [
     {
@@ -146,7 +153,8 @@ export function wrap471Panels(d: Dims): PanelDef[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
-      lift: m.T * 0.7,
+      lift: (t) => inboard * Math.sin((Math.abs(ears(t)) * Math.PI) / 180),
+      ride: earRide(inwardLeft),
       netLabel: "Ушко",
     },
     {
@@ -161,7 +169,8 @@ export function wrap471Panels(d: Dims): PanelDef[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
-      lift: m.T * 0.7,
+      lift: (t) => inboard * Math.sin((Math.abs(ears(t)) * Math.PI) / 180),
+      ride: earRide(inwardRight(L)),
       netLabel: "Ушко",
     },
     {
@@ -176,7 +185,7 @@ export function wrap471Panels(d: Dims): PanelDef[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
-      lift: m.T * 0.95,
+      lift: frontGap,
       netLabel: "Клапан",
     },
   ];

@@ -73,7 +73,6 @@ export function Calculator() {
     playing: true,
     dragging: false,
     armDrag: false,
-    holdUntil: 0,
   });
   const dragX = useRef(0);
   const dragY = useRef(0);
@@ -87,16 +86,13 @@ export function Calculator() {
       const dt = Math.min(40, now - last);
       last = now;
       const state = view.current;
+      let moved = false;
       if (state.playing) {
         state.t = Math.min(1, state.t + dt / PLAY_MS);
-        if (state.t >= 1) {
-          state.playing = false;
-          state.holdUntil = now + 2400;
-        }
-      } else if (!state.dragging && now > state.holdUntil) {
-        state.yaw += ((Math.PI * 2) / 16000) * dt;
+        moved = true;
+        if (state.t >= 1) state.playing = false;
       }
-      if (now - lastPaint > 32) {
+      if (moved && now - lastPaint > 32) {
         lastPaint = now;
         setFrame((frame) => (frame + 1) % 1_000_000);
       }
@@ -391,6 +387,7 @@ export function Calculator() {
                   const dx = event.clientX - dragX.current;
                   dragX.current = event.clientX;
                   view.current.yaw += dx * 0.01;
+                  setFrame((frame) => frame + 1);
                 }}
                 onPointerUp={() => {
                   view.current.dragging = false;
@@ -398,6 +395,7 @@ export function Calculator() {
                 }}
                 onDoubleClick={() => {
                   view.current.yaw = 0.45;
+                  setFrame((frame) => frame + 1);
                 }}
               />
             ) : (
@@ -425,7 +423,6 @@ export function Calculator() {
                   const next = Array.isArray(value) ? value[0] : value;
                   view.current.t = next / 1000;
                   view.current.playing = false;
-                  view.current.holdUntil = performance.now() + 5000;
                   setFrame((frame) => frame + 1);
                 }}
                 aria-label="Ход сборки"
@@ -438,7 +435,6 @@ export function Calculator() {
                     onClick={() => {
                       view.current.t = index === 0 ? 0 : stage.at;
                       view.current.playing = false;
-                      view.current.holdUntil = performance.now() + 5000;
                       setFrame((frame) => frame + 1);
                     }}
                     className={`min-w-[7.5rem] flex-1 rounded-xl border px-2.5 py-2 text-center text-xs leading-4 ${

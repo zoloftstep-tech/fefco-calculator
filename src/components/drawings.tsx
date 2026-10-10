@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,6 +51,7 @@ function Dimension({
   fromB,
   label,
   marker,
+  fontSize = 15,
 }: {
   a: [number, number];
   b: [number, number];
@@ -58,6 +59,7 @@ function Dimension({
   fromB?: [number, number];
   label: string;
   marker: string;
+  fontSize?: number;
 }) {
   const dx = b[0] - a[0];
   const dy = b[1] - a[1];
@@ -85,6 +87,7 @@ function Dimension({
             y2={extend(fromA, a)[1]}
             stroke="#555"
             strokeWidth={0.8}
+            vectorEffect="non-scaling-stroke"
           />
           <line
             x1={fromB[0]}
@@ -93,6 +96,7 @@ function Dimension({
             y2={extend(fromB, b)[1]}
             stroke="#555"
             strokeWidth={0.8}
+            vectorEffect="non-scaling-stroke"
           />
         </>
       )}
@@ -103,17 +107,18 @@ function Dimension({
         y2={b[1]}
         stroke="#222"
         strokeWidth={1.05}
+        vectorEffect="non-scaling-stroke"
         markerStart={`url(#${marker})`}
         markerEnd={`url(#${marker})`}
       />
       <text
         x={mid[0]}
-        y={mid[1] - 8}
+        y={mid[1] - fontSize * 0.55}
         textAnchor="middle"
         fill="#242424"
-        fontSize={15}
+        fontSize={fontSize}
         stroke="#fff"
-        strokeWidth={5}
+        strokeWidth={Math.max(2.2, fontSize * 0.34)}
         paintOrder="stroke"
         strokeLinejoin="round"
         transform={`rotate(${rotation} ${mid[0]} ${mid[1]})`}
@@ -284,13 +289,63 @@ function fitNet(net: NetModel) {
     minY = Math.min(minY, p[1]);
     maxY = Math.max(maxY, p[1]);
   }
-  const scale = Math.min(846 / Math.max(maxX - minX, 1), 300 / Math.max(maxY - minY, 1));
+  const scale = Math.min(820 / Math.max(maxX - minX, 1), 360 / Math.max(maxY - minY, 1));
   const midX = (minX + maxX) / 2;
   const midY = (minY + maxY) / 2;
   return (p: Pt): [number, number] => [
     450 + (p[0] - midX) * scale,
-    180 + (p[1] - midY) * scale,
+    210 + (p[1] - midY) * scale,
   ];
+}
+
+function panelDimensions(net: NetModel) {
+  const spans: {
+    a: [number, number];
+    b: [number, number];
+    fromA: [number, number];
+    fromB: [number, number];
+    label: string;
+  }[] = [];
+  const kept: { mx: number; my: number; mm: number; horiz: boolean }[] = [];
+  const consider = (
+    a: [number, number],
+    b: [number, number],
+    fromA: [number, number],
+    fromB: [number, number],
+    mm: number,
+    horiz: boolean,
+  ) => {
+    if (mm < 22) return;
+    const mx = (a[0] + b[0]) / 2;
+    const my = (a[1] + b[1]) / 2;
+    const duplicate = kept.some(
+      (item) => item.horiz === horiz && Math.abs(item.mm - mm) < 0.8 && Math.hypot(item.mx - mx, item.my - my) < 18,
+    );
+    if (duplicate) return;
+    kept.push({ mx, my, mm, horiz });
+    spans.push({ a, b, fromA, fromB, label: `${fmt(mm)} мм` });
+  };
+
+  for (const panel of net.panels) {
+    if (panel.tone === "slot") continue;
+    const xs = panel.points.map((point) => point[0]);
+    const ys = panel.points.map((point) => point[1]);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    const width = maxX - minX;
+    const height = maxY - minY;
+    if (width >= 22 && height >= 8) {
+      const y = height >= 36 ? minY + Math.min(14, height * 0.22) : minY - 9;
+      consider([minX, y], [maxX, y], [minX, minY], [maxX, minY], width, true);
+    }
+    if (height >= 22 && width >= 8) {
+      const x = width >= 36 ? minX + Math.min(14, width * 0.18) : maxX + 9;
+      consider([x, minY], [x, maxY], [minX, minY], [minX, maxY], height, false);
+    }
+  }
+  return spans;
 }
 
 function roomy(points: Pt[]) {
@@ -310,63 +365,177 @@ function roomy(points: Pt[]) {
 export function NetView({ net }: { net: NetModel }) {
   const transform = fitNet(net);
   const gap = Math.max(net.width, net.height) * 0.065;
+  const spans = panelDimensions(net);
+  const [cam, setCam] = useState({ k: 1, x: 0, y: 0 });
+  const svgRef = useRef<SVGSVGElement>(null);
+  const drag = useRef<{ px: number; py: number; x: number; y: number } | null>(null);
+  const camRef = useRef(cam);
+  camRef.current = cam;
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const rect = svg.getBoundingClientRect();
+      const px = ((event.clientX - rect.left) / rect.width) * 900;
+      const py = ((event.clientY - rect.top) / rect.height) * 440;
+      const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+      setCam((current) => {
+        const k = Math.min(8, Math.max(0.45, current.k * factor));
+        const ratio = k / current.k;
+        return { k, x: px - (px - current.x) * ratio, y: py - (py - current.y) * ratio };
+      });
+    };
+    svg.addEventListener("wheel", onWheel, { passive: false });
+    return () => svg.removeEventListener("wheel", onWheel);
+  }, []);
+
+  const font = 13 / cam.k;
+  const reset = () => setCam({ k: 1, x: 0, y: 0 });
+  const zoomBy = (direction: 1 | -1) => {
+    setCam((current) => {
+      const k = Math.min(8, Math.max(0.45, current.k * (direction > 0 ? 1.12 : 1 / 1.12)));
+      const ratio = k / current.k;
+      return { k, x: 450 - (450 - current.x) * ratio, y: 220 - (220 - current.y) * ratio };
+    });
+  };
 
   return (
-    <svg viewBox="0 0 900 360" className="h-[220px] w-full max-w-full sm:h-[320px]" role="img" aria-label="Развёртка коробки">
-      <defs>
-        <Arrow id="net-arrow" />
-      </defs>
-      {net.panels.map((panel, index) => (
-        <polygon key={index} points={pts(panel.points.map(transform))} fill={TONE[panel.tone]} />
-      ))}
-      {net.cuts.map(([a, b], index) => {
-        const p = transform(a);
-        const q = transform(b);
-        return (
-          <line key={`c${index}`} x1={p[0]} y1={p[1]} x2={q[0]} y2={q[1]} stroke="#343434" strokeWidth={1.2} />
-        );
-      })}
-      {net.folds.map(([a, b], index) => {
-        const p = transform(a);
-        const q = transform(b);
-        return (
-          <line
-            key={`f${index}`}
-            x1={p[0]}
-            y1={p[1]}
-            x2={q[0]}
-            y2={q[1]}
-            stroke="#cf5656"
-            strokeWidth={1.1}
-            strokeDasharray="5 4"
-          />
-        );
-      })}
-      {net.panels.map((panel, index) => {
-        if (!panel.label || !roomy(panel.points)) return null;
-        const c = transform(panelCentroid(panel.points));
-        return (
-          <text key={`t${index}`} x={c[0]} y={c[1]} textAnchor="middle" dominantBaseline="middle" fontSize={14} fill="#24312c">
-            {panel.label}
-          </text>
-        );
-      })}
-      <Dimension
-        a={transform([0, net.height + gap])}
-        b={transform([net.width, net.height + gap])}
-        fromA={transform([0, net.height])}
-        fromB={transform([net.width, net.height])}
-        label={`${fmt(net.width)} мм`}
-        marker="net-arrow"
-      />
-      <Dimension
-        a={transform([-gap, 0])}
-        b={transform([-gap, net.height])}
-        fromA={transform([0, 0])}
-        fromB={transform([0, net.height])}
-        label={`${fmt(net.height)} мм`}
-        marker="net-arrow"
-      />
-    </svg>
+    <div>
+      <div className="relative">
+        <svg
+          ref={svgRef}
+          viewBox="0 0 900 440"
+          className="h-[280px] w-full max-w-full touch-none cursor-grab sm:h-[420px] active:cursor-grabbing"
+          role="img"
+          aria-label="Развёртка коробки"
+          onDoubleClick={reset}
+          onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            event.currentTarget.setPointerCapture(event.pointerId);
+            drag.current = { px: event.clientX, py: event.clientY, x: camRef.current.x, y: camRef.current.y };
+          }}
+          onPointerMove={(event) => {
+            const start = drag.current;
+            const svg = svgRef.current;
+            if (!start || !svg) return;
+            const rect = svg.getBoundingClientRect();
+            const dx = ((event.clientX - start.px) / rect.width) * 900;
+            const dy = ((event.clientY - start.py) / rect.height) * 440;
+            setCam({ k: camRef.current.k, x: start.x + dx, y: start.y + dy });
+          }}
+          onPointerUp={() => {
+            drag.current = null;
+          }}
+          onPointerCancel={() => {
+            drag.current = null;
+          }}
+        >
+          <defs>
+            <Arrow id="net-arrow" />
+          </defs>
+          <g transform={`translate(${cam.x} ${cam.y}) scale(${cam.k})`}>
+            {net.panels.map((panel, index) => (
+              <polygon key={index} points={pts(panel.points.map(transform))} fill={TONE[panel.tone]} />
+            ))}
+            {net.cuts.map(([a, b], index) => {
+              const p = transform(a);
+              const q = transform(b);
+              return (
+                <line
+                  key={`c${index}`}
+                  x1={p[0]}
+                  y1={p[1]}
+                  x2={q[0]}
+                  y2={q[1]}
+                  stroke="#343434"
+                  strokeWidth={1.2}
+                  vectorEffect="non-scaling-stroke"
+                />
+              );
+            })}
+            {net.folds.map(([a, b], index) => {
+              const p = transform(a);
+              const q = transform(b);
+              return (
+                <line
+                  key={`f${index}`}
+                  x1={p[0]}
+                  y1={p[1]}
+                  x2={q[0]}
+                  y2={q[1]}
+                  stroke="#cf5656"
+                  strokeWidth={1.1}
+                  strokeDasharray="5 4"
+                  vectorEffect="non-scaling-stroke"
+                />
+              );
+            })}
+            {net.panels.map((panel, index) => {
+              if (!panel.label || !roomy(panel.points)) return null;
+              const c = transform(panelCentroid(panel.points));
+              return (
+                <text
+                  key={`t${index}`}
+                  x={c[0]}
+                  y={c[1]}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fontSize={14 / cam.k}
+                  fill="#24312c"
+                >
+                  {panel.label}
+                </text>
+              );
+            })}
+            {spans.map((span, index) => (
+              <Dimension
+                key={`d${index}`}
+                a={transform(span.a)}
+                b={transform(span.b)}
+                fromA={transform(span.fromA)}
+                fromB={transform(span.fromB)}
+                label={span.label}
+                marker="net-arrow"
+                fontSize={font}
+              />
+            ))}
+            <Dimension
+              a={transform([0, net.height + gap])}
+              b={transform([net.width, net.height + gap])}
+              fromA={transform([0, net.height])}
+              fromB={transform([net.width, net.height])}
+              label={`${fmt(net.width)} мм`}
+              marker="net-arrow"
+              fontSize={font}
+            />
+            <Dimension
+              a={transform([-gap, 0])}
+              b={transform([-gap, net.height])}
+              fromA={transform([0, 0])}
+              fromB={transform([0, net.height])}
+              label={`${fmt(net.height)} мм`}
+              marker="net-arrow"
+              fontSize={font}
+            />
+          </g>
+        </svg>
+        <div className="absolute right-2 top-2 flex gap-1">
+          <Button type="button" variant="outline" size="icon" aria-label="Отдалить развёртку" onClick={() => zoomBy(-1)}>
+            <Minus />
+          </Button>
+          <Button type="button" variant="outline" size="icon" aria-label="Приблизить развёртку" onClick={() => zoomBy(1)}>
+            <Plus />
+          </Button>
+          <Button type="button" variant="outline" size="icon" aria-label="Весь чертёж" onClick={reset}>
+            <span className="text-xs font-medium">1:1</span>
+          </Button>
+        </div>
+      </div>
+      <p className="mt-2 text-center text-xs text-[#5c6b66]">
+        Колёсико приближает развёртку, перетаскивание сдвигает лист. Двойной щелчок возвращает весь чертёж. Размеры — в миллиметрах.
+      </p>
+    </div>
   );
 }

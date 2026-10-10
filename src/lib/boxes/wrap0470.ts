@@ -1,8 +1,9 @@
 import { phase, type PanelDef } from "@/lib/fold";
-import type { Pt } from "@/lib/math";
+import type { Pt, Vec3 } from "@/lib/math";
 import type { Dims } from "@/lib/fefco-types";
 import { resolveBoard } from "@/lib/params/board";
-import { buildToeEnds } from "@/lib/boxes/parts/toe";
+import { buildToeEnds, TOE_LUG_FOLD } from "@/lib/boxes/parts/toe";
+import { dropInside, inwardLeft, inwardRight, slideIntoPocket } from "@/lib/clearance";
 
 /**
  * FEFCO 0470 — wrap / self-locking tray with hinged lid (Essential Image).
@@ -52,20 +53,30 @@ function sideEar(height: number, depth: number, dir: 1 | -1): Pt[] {
 export function wrapPanels(d: Dims): PanelDef[] {
   const { L, W, H } = d;
   const m = wrapMetrics(d);
+  // Ends and lip pocket first. Wings bend, the lid drops while they are still
+  // outside, then they slide into the end gap. The flap stays in front of the
+  // wall; the tongue follows into the lip.
   const ends = (t: number) => phase(t, 0.02, 0.14, 0, 90);
-  const bridges = (t: number) => phase(t, 0.1, 0.2, 0, 90);
-  const rolls = (t: number) => phase(t, 0.18, 0.28, 0, 90);
-  const lugs = (t: number) => phase(t, 0.26, 0.36, 0, 88);
+  const bridges = (t: number) => phase(t, 0.08, 0.18, 0, 90);
+  const rolls = (t: number) => phase(t, 0.16, 0.26, 0, 90);
+  const lugs = (t: number) => phase(t, 0.24, 0.34, 0, TOE_LUG_FOLD);
   const bottoms = (t: number) => phase(t, 0.12, 0.24, 0, 90);
-  const front = (t: number) => phase(t, 0.14, 0.28, 0, 90);
-  const frontEars = (t: number) => phase(t, 0.24, 0.36, 0, 96);
-  const lip = (t: number) => phase(t, 0.32, 0.48, 0, 168);
-  const back = (t: number) => phase(t, 0.28, 0.42, 0, 90);
-  const backEars = (t: number) => phase(t, 0.38, 0.52, 0, 96);
-  const lid = (t: number) => phase(t, 0.5, 0.66, 0, 90);
-  const wings = (t: number) => phase(t, 0.66, 0.8, 0, 100);
-  const lidFront = (t: number) => phase(t, 0.74, 0.88, 0, 100);
-  const tongue = (t: number) => phase(t, 0.86, 1, 0, 70);
+  const front = (t: number) => phase(t, 0.06, 0.18, 0, 90);
+  const frontEars = (t: number) => phase(t, 0.16, 0.28, 0, 90);
+  const lip = (t: number) => phase(t, 0.28, 0.42, 0, 172);
+  const back = (t: number) => phase(t, 0.06, 0.18, 0, 90);
+  const backEars = (t: number) => phase(t, 0.16, 0.28, 0, 90);
+  const lid = (t: number) => phase(t, 0.54, 0.66, 0, 90);
+  const wings = (t: number) => (t <= 0.66 ? phase(t, 0.4, 0.52, 0, 50) : phase(t, 0.66, 0.8, 50, 90));
+  const lidFront = (t: number) => phase(t, 0.78, 0.9, 0, 90);
+  const tongue = (t: number) => phase(t, 0.9, 1, 0, 158);
+  const rollIn = m.bridge + 0.2;
+  const frontGap = -Math.max(1.6, m.T * 1.1);
+  const wingRide = (inward: (point: Vec3) => number) => (t: number, points: Vec3[]) => {
+    if (t < 0.4) return [0, 0, 0] as Vec3;
+    if (t < 0.66) return dropInside(points, H, 1e6, inward);
+    return slideIntoPocket(points, rollIn, inward);
+  };
 
   const notch = m.tongueW * 0.55;
   const lipPoly: Pt[] = [
@@ -176,7 +187,7 @@ export function wrapPanels(d: Dims): PanelDef[] {
       parent: "left",
       hinge: [0, 0, 0],
       axis: "y",
-      sign: -1,
+      sign: 1,
       angle: bottoms,
       poly: [
         [0, W * 0.08],
@@ -187,7 +198,7 @@ export function wrapPanels(d: Dims): PanelDef[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
-      lift: m.T * 0.3,
+      lift: -m.T * 0.3,
       netLabel: "Дно",
     },
     {
@@ -196,7 +207,7 @@ export function wrapPanels(d: Dims): PanelDef[] {
       parent: "right",
       hinge: [0, 0, 0],
       axis: "y",
-      sign: 1,
+      sign: -1,
       angle: bottoms,
       poly: [
         [0, W * 0.08],
@@ -207,7 +218,7 @@ export function wrapPanels(d: Dims): PanelDef[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
-      lift: m.T * 0.3,
+      lift: -m.T * 0.3,
       netLabel: "Дно",
     },
     ear("ear-lf", "Переднее ушко", "front", [0, 0, 0], "y", 1, sideEar(H, m.ear, -1), frontEars, m.T * 0.4),
@@ -234,8 +245,8 @@ export function wrapPanels(d: Dims): PanelDef[] {
       lift: -m.T * 0.3,
       netLabel: "Крышка",
     },
-    ear("wing-l", "Крыло крышки", "lid", [0, 0, 0], "y", 1, wingPoly(W, m.wing, -1), wings, m.T * 1.3),
-    ear("wing-r", "Крыло крышки", "lid", [L, 0, 0], "y", -1, wingPoly(W, m.wing, 1), wings, m.T * 1.3),
+    ear("wing-l", "Крыло крышки", "lid", [0, 0, 0], "y", 1, wingPoly(W, m.wing, -1), wings, Math.max(1.3, m.T * 0.9), wingRide(inwardLeft)),
+    ear("wing-r", "Крыло крышки", "lid", [L, 0, 0], "y", -1, wingPoly(W, m.wing, 1), wings, Math.max(1.3, m.T * 0.9), wingRide(inwardRight(L))),
     {
       id: "lid-front",
       name: "Клапан крышки",
@@ -253,7 +264,7 @@ export function wrapPanels(d: Dims): PanelDef[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
-      lift: m.T * 1.05,
+      lift: frontGap,
       netLabel: "Клапан",
     },
     {
@@ -289,6 +300,7 @@ function ear(
   poly: Pt[],
   angle: (t: number) => number,
   lift = 0,
+  ride?: PanelDef["ride"],
 ): PanelDef {
   return {
     id,
@@ -303,6 +315,7 @@ function ear(
     tone: "flap",
     stack: 0,
     lift,
+    ride,
   };
 }
 

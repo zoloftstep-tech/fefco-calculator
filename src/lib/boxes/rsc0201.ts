@@ -57,7 +57,7 @@ export function rscFaces(d: Dims, t: number, yaw: number): WorldFace[] {
   const ranks = flapRanks(flapPosition(slider), yaw);
   const f = W / 2;
   /** Minor flaps sit one caliper below majors when closed. */
-  const hShort = H - Math.min(T, Math.min(H * 0.008, 1) + T * 0.35);
+  const hShort = H - Math.min(T, H * 0.45);
   const smallRad = (small * Math.PI) / 180;
   const bigRad = (big * Math.PI) / 180;
   const cs = Math.cos(smallRad);
