@@ -387,6 +387,7 @@ export function Calculator() {
                   const dx = event.clientX - dragX.current;
                   dragX.current = event.clientX;
                   view.current.yaw += dx * 0.01;
+                  setFrame((frame) => frame + 1);
                 }}
                 onPointerUp={() => {
                   view.current.dragging = false;
@@ -394,6 +395,7 @@ export function Calculator() {
                 }}
                 onDoubleClick={() => {
                   view.current.yaw = 0.45;
+                  setFrame((frame) => frame + 1);
                 }}
               />
             ) : (
