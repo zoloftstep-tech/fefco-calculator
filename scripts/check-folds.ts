@@ -130,8 +130,8 @@ assert(center(box427["lug-l-0"].points)[2] < 20, "0427 lug near the floor");
     Math.min(...lug.map((p) => p[0])) < Math.max(...hole.map((p) => p[0])) &&
     Math.max(...lug.map((p) => p[0])) > Math.min(...hole.map((p) => p[0]));
   assert(overlap, "0427 lug meets the base slot");
-  assert(Math.min(...box427["ear-l"].points.map((p) => p[0])) >= -0.2, "0427 lid ear is inside the end");
-  assert(Math.max(...box427["ear-l"].points.map((p) => p[0])) < 12, "0427 lid ear stays in the side pocket");
+  assert(Math.min(...box427["ear-l"].points.map((p) => p[0])) > 0, "0427 lid ear finishes inside the box");
+  assert(Math.max(...box427["ear-l"].points.map((p) => p[0])) < 18, "0427 lid ear enters the box");
   assert(Math.min(...box427["lug-l-0"].points.map((p) => p[2])) > -1, "0427 lug does not pierce the floor");
   for (const id of ["dust-fl", "dust-fr", "dust-bl", "dust-br"] as const) {
     const dust = box427[id].points;
@@ -143,11 +143,22 @@ assert(
   "0427 draws both lid ears and the four wall ears",
 );
 
-const openEars = faceMap("0427", d427, 0.8);
-assert(Math.min(...openEars["ear-l"].points.map((p) => p[0])) < -20, "0427 lid ears stick out until the lid is down");
-const flapOut = faceMap("0427", d427, 0.94);
-assert(Math.min(...flapOut["tuck-ear-l"].points.map((p) => p[0])) < -15, "0427 flap ears stick out beside the tuck");
-assert(Math.min(...box427["tuck-ear-l"].points.map((p) => p[0])) > 0, "0427 flap ears enter the side wall");
+const bent427 = faceMap("0427", d427, 0.56);
+assert(center(bent427.lid.points)[2] > 120, "0427 lid is still up while its ears bend");
+assert(Math.min(...bent427["ear-l"].points.map((p) => p[0])) < -20, "0427 lid ears bend before the lid drops");
+const down427 = faceMap("0427", d427, 0.68);
+assert(Math.min(...down427["ear-l"].points.map((p) => p[0])) < -20, "0427 lid ears are still out as the lid arrives");
+const flapBent = faceMap("0427", d427, 0.86);
+assert(center(flapBent.tuck.points)[1] < 0, "0427 flap has not covered the front yet");
+assert(Math.min(...flapBent["tuck-ear-l"].points.map((p) => p[0])) < -8, "0427 flap ears bend before the flap closes");
+const covered427 = faceMap("0427", d427, 0.94);
+assert(center(covered427.tuck.points)[1] > 0, "0427 flap covers the front");
+assert(
+  Math.min(...box427["tuck-ear-l"].points.map((p) => p[0])) > 0 &&
+    Math.max(...box427["tuck-ear-l"].points.map((p) => p[0])) < 9 &&
+    Math.min(...box427["tuck-ear-l"].points.map((p) => p[1])) > 0,
+  "0427 flap ears sit between the end and the roll",
+);
 
 const step215 = faceMap("0215", d215, 0.2);
 assert(Math.min(...step215["bot-left"].points.map((p) => p[2])) > -2, "0215 dust is down before the female flap");
@@ -201,8 +212,26 @@ assert(Math.abs(net215.width - (30 + 2 * (300 + 200))) < 1, `0215 blank width ${
 assert(net215.panels.some((panel) => panel.tone === "glue"), "0215 has a glue flap");
 assert(net215.panels.some((panel) => panel.tone === "lid"), "0215 has a lid panel");
 
-for (const id of ["0201", "0215", "0422", "0427", "0470"] as const) {
-  const dims = id === "0201" ? d0201 : id === "0215" ? d215 : id === "0422" ? d422 : id === "0427" ? d427 : d470;
+const d471 = { L: 300, W: 160, H: 90, G: 0 };
+const box471 = faceMap("0471", d471, 1);
+assert(center(box471.lid.points)[2] > 80, "0471 lid up");
+assert(Math.min(...box471["lid-front"].points.map((p) => p[1])) >= -1, "0471 rounded flap tucks inside");
+{
+  const hook = box471["hook-l"].points;
+  const slot = box471["slot-l"].points;
+  const overlap =
+    Math.max(...hook.map((p) => p[1])) > Math.min(...slot.map((p) => p[1])) &&
+    Math.min(...hook.map((p) => p[1])) < Math.max(...slot.map((p) => p[1])) &&
+    Math.max(...hook.map((p) => p[2])) > Math.min(...slot.map((p) => p[2])) &&
+    Math.min(...hook.map((p) => p[2])) < Math.max(...slot.map((p) => p[2]));
+  assert(overlap, "0471 hook enters the end slot");
+  assert(Math.min(...hook.map((p) => p[0])) > 0, "0471 hook stays inside the end");
+}
+assert(getNet("0471", d471).panels.filter((panel) => panel.tone === "slot").length === 2, "0471 draws two end slots");
+
+for (const id of ["0201", "0215", "0422", "0427", "0470", "0471"] as const) {
+  const dims =
+    id === "0201" ? d0201 : id === "0215" ? d215 : id === "0422" ? d422 : id === "0427" ? d427 : id === "0471" ? d471 : d470;
   const net = getNet(id, dims);
   assert(net.width > dims.L && net.height > dims.H, `${id} blank encloses the box`);
   assert(net.cuts.length > 4 && net.folds.length > 4, `${id} has cuts and creases`);

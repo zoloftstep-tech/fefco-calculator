@@ -21,7 +21,7 @@ import { fmt, fmtArea, type Vec3 } from "@/lib/math";
 import { fitPoints } from "@/lib/project";
 
 const PLAY_MS = 9000;
-const ORDER: BoxId[] = ["0427", "0422", "0470", "0215", "0201"];
+const ORDER: BoxId[] = ["0427", "0422", "0470", "0471", "0215", "0201"];
 
 type Fields = { L: string; W: string; H: string; G: string };
 
@@ -213,11 +213,11 @@ export function Calculator() {
       </h1>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-[#737b84] sm:text-[15px]">
         Внутренние размеры в миллиметрах задают и развёртку, и сборку.
-        0427, 0422 и 0470 складываются с плоского листа. 0201 и 0215 показывают
+        0427, 0422, 0470 и 0471 складываются с плоского листа. 0201 и 0215 показывают
         уже склеенный рукав: клапаны, дно 1-2-3 и крышку.
       </p>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {ORDER.map((id) => {
           const item = CATALOG[id];
           const selected = id === typeId;

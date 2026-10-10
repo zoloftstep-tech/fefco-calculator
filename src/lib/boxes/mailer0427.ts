@@ -55,13 +55,15 @@ function lugPoly(width: number, depth: number, dir: 1 | -1): Pt[] {
   ];
 }
 
+/** Catalog trapezoid: long edge on the crease, short edge outside. */
 function earPoly(span: number, depth: number, dir: 1 | -1): Pt[] {
-  const cut = Math.min(span * 0.16, depth * 0.5);
+  const hinge = span * 0.07;
+  const tip = span * 0.24;
   return [
-    [0, cut],
-    [0, span - cut],
-    [dir * depth, span - cut * 0.4],
-    [dir * depth, cut * 0.4],
+    [0, hinge],
+    [0, span - hinge],
+    [dir * depth, span - tip],
+    [dir * depth, tip],
   ];
 }
 
@@ -86,14 +88,14 @@ function tuckPoly(length: number, depth: number, side: number): Pt[] {
 
 /** Ears on the closing flap. They stick out sideways, then fold into the ends. */
 function tuckEarPoly(depth: number, reach: number, dir: 1 | -1): Pt[] {
-  const y0 = Math.max(2, depth * 0.08);
-  const y1 = depth * 0.9;
+  const y0 = Math.max(2, depth * 0.1);
+  const y1 = depth * 0.88;
+  const inset = (y1 - y0) * 0.22;
   return [
     [0, y0],
     [0, y1],
-    [dir * reach * 0.62, y1],
-    [dir * reach, y1 * 0.58],
-    [dir * reach * 0.28, y0],
+    [dir * reach, y1 - inset],
+    [dir * reach, y0 + inset],
   ];
 }
 
@@ -102,16 +104,16 @@ export function mailerPanels(d: Dims): PanelDef[] {
   const { lug, tuck, ear, inset, dust, roll } = mailerMetrics(d);
   const spans = lugSpans(W);
 
-  const walls = (t: number) => phase(t, 0.02, 0.16, 0, 90);
-  const dusts = (t: number) => phase(t, 0.12, 0.28, 0, 90);
-  const ends = (t: number) => phase(t, 0.22, 0.4, 0, 90);
-  const rolls = (t: number) => phase(t, 0.36, 0.58, 0, ROLL);
-  const lugs = (t: number) => phase(t, 0.52, 0.7, 0, 22);
-  const lid = (t: number) => phase(t, 0.62, 0.76, 0, 90);
-  const ears = (t: number) => phase(t, 0.76, 0.88, 0, 94);
+  const walls = (t: number) => phase(t, 0.02, 0.1, 0, 90);
+  const dusts = (t: number) => phase(t, 0.08, 0.16, 0, 90);
+  const ends = (t: number) => phase(t, 0.14, 0.24, 0, 90);
+  const rolls = (t: number) => phase(t, 0.22, 0.34, 0, ROLL);
+  const lugs = (t: number) => phase(t, 0.32, 0.44, 0, 22);
+  const lid = (t: number) => phase(t, 0.56, 0.68, 0, 90);
+  const ears = (t: number) => (t <= 0.68 ? phase(t, 0.44, 0.56, 0, 48) : phase(t, 0.68, 0.8, 48, 100));
   const tuckAngle = (t: number) => phase(t, 0.86, 0.94, 0, 104);
-  const flapEars = (t: number) => phase(t, 0.93, 1, 0, 88);
-  const side = Math.max(inset, 10);
+  const flapEars = (t: number) => (t <= 0.94 ? phase(t, 0.78, 0.86, 0, 42) : phase(t, 0.94, 1, 42, 94));
+  const side = 0;
 
   const panels: PanelDef[] = [
     {

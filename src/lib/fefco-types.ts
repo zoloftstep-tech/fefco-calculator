@@ -1,4 +1,4 @@
-export type BoxId = "0201" | "0215" | "0422" | "0427" | "0470";
+export type BoxId = "0201" | "0215" | "0422" | "0427" | "0470" | "0471";
 
 export type Dims = {
   L: number;

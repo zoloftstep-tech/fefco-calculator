@@ -5,6 +5,7 @@ import { rscFaces, rscNet } from "@/lib/boxes/rsc0201";
 import { sleeveMetrics, sleeveFaces, sleeveNet } from "@/lib/boxes/sleeve0215";
 import { trayMetrics, trayPanels } from "@/lib/boxes/tray0422";
 import { wrapMetrics, wrapPanels } from "@/lib/boxes/wrap0470";
+import { wrap471Metrics, wrap471Panels } from "@/lib/boxes/wrap0471";
 import type { BoxId, BoxMeta, Dims } from "@/lib/fefco-types";
 
 export type { BoxId, BoxMeta, Dims, Stage } from "@/lib/fefco-types";
@@ -17,19 +18,19 @@ export const CATALOG: Record<BoxId, BoxMeta> = {
     title: "Почтовая с крышкой",
     group: "04 · папка, закатные торцы",
     summary:
-      "FEFCO 0427, roll-end tuck top. Перед и зад встают вместе с ушками, торцы закатываются, язычки садятся в дно. Крышка ложится сверху, её ушки заходят в торцы, клапан уходит за переднюю стенку, а ушки клапана сгибаются в боковые стенки.",
+      "FEFCO 0427. Сначала сгибаются ушки крышки, крышка опускается, ушки входят внутрь. Затем сгибаются ушки клапана, клапан закрывает перед, а ушки встают между торцом и закаткой.",
     selfAssembly: true,
     formula: "дно Д × Ш, закатка торцов 2 × В, крышка Ш и клапан",
     defaults: { L: 300, W: 200, H: 80, G: 0 },
     stages: [
       { title: "Плоский лист", detail: "до сгиба", at: 0.02 },
-      { title: "Перед и зад", detail: "стенки и ушки", at: 0.28 },
-      { title: "Торцы", detail: "наружная стенка", at: 0.4 },
-      { title: "Закатка", detail: "язычки в дно", at: 0.7 },
-      { title: "Крышка", detail: "ушки ещё снаружи", at: 0.76 },
-      { title: "Ушки крышки", detail: "входят в торцы", at: 0.88 },
-      { title: "Клапан", detail: "за переднюю стенку", at: 0.94 },
-      { title: "Ушки клапана", detail: "в боковые стенки", at: 1 },
+      { title: "Корпус", detail: "стенки и закатка", at: 0.44 },
+      { title: "Ушки крышки", detail: "сначала сгибаются", at: 0.56 },
+      { title: "Крышка", detail: "опускается", at: 0.68 },
+      { title: "Ушки внутрь", detail: "входят в коробку", at: 0.8 },
+      { title: "Ушки клапана", detail: "сгибаются", at: 0.86 },
+      { title: "Клапан", detail: "закрывает перед", at: 0.94 },
+      { title: "В закатку", detail: "между торцом и закаткой", at: 1 },
     ],
   },
   "0422": {
@@ -67,6 +68,24 @@ export const CATALOG: Record<BoxId, BoxMeta> = {
       { title: "Крышка", detail: "сначала ложится сверху", at: 0.66 },
       { title: "Заправка", detail: "ушки и клапан внутрь", at: 0.88 },
       { title: "Язычок", detail: "в переднюю кромку", at: 1 },
+    ],
+  },
+  "0471": {
+    id: "0471",
+    code: "0471",
+    title: "Обёртка с крючками",
+    group: "04 · папка",
+    summary:
+      "FEFCO 0471. Торцы с прорезями встают первыми, крышка опускается, скруглённый клапан закрывает перед, крючки входят в прорези торцов.",
+    selfAssembly: true,
+    formula: "дно Д × Ш, торцы с прорезями, крышка и скруглённый клапан",
+    defaults: { L: 300, W: 160, H: 90, G: 0 },
+    stages: [
+      { title: "Плоский лист", detail: "до сгиба", at: 0.02 },
+      { title: "Стенки", detail: "перед, зад и торцы", at: 0.32 },
+      { title: "Крышка", detail: "опускается", at: 0.54 },
+      { title: "Клапан", detail: "скруглённый, на перед", at: 0.74 },
+      { title: "Крючки", detail: "в прорези торцов", at: 1 },
     ],
   },
   "0215": {
@@ -109,22 +128,25 @@ export const CATALOG: Record<BoxId, BoxMeta> = {
 export function getFaces(id: BoxId, dims: Dims, t: number, yaw = 0): WorldFace[] {
   if (id === "0201") return rscFaces(dims, t, yaw);
   if (id === "0215") return sleeveFaces(dims, t);
-  const panels =
-    id === "0422" ? trayPanels(dims) : id === "0427" ? mailerPanels(dims) : wrapPanels(dims);
-  return facesFrom(panels, t);
+  return facesFrom(panelsFor(id, dims), t);
 }
 
 export function getNet(id: BoxId, dims: Dims): NetModel {
   if (id === "0201") return rscNet(dims);
   if (id === "0215") return sleeveNet(dims);
-  const panels = id === "0422" ? trayPanels(dims) : id === "0427" ? mailerPanels(dims) : wrapPanels(dims);
-  return netFromPanels(panels);
+  return netFromPanels(panelsFor(id, dims));
+}
+
+function panelsFor(id: BoxId, dims: Dims) {
+  if (id === "0422") return trayPanels(dims);
+  if (id === "0427") return mailerPanels(dims);
+  if (id === "0471") return wrap471Panels(dims);
+  return wrapPanels(dims);
 }
 
 export function panelCount(id: BoxId, dims: Dims) {
   if (id === "0201" || id === "0215") return getNet(id, dims).panels.filter((panel) => panel.tone !== "slot").length;
-  const panels = id === "0422" ? trayPanels(dims) : id === "0427" ? mailerPanels(dims) : wrapPanels(dims);
-  return structuralCount(panels);
+  return structuralCount(panelsFor(id, dims));
 }
 
 export function warningsFor(id: BoxId, d: Dims) {
@@ -169,7 +191,7 @@ export function warningsFor(id: BoxId, d: Dims) {
   if (id === "0422" && trayMetrics(d).taper * 2 > d.L - 4) {
     messages.push("Косынки почти встречаются. Увеличьте длину или уменьшите ширину.");
   }
-  if (id === "0470" && d.W < d.H * 0.6) {
+  if ((id === "0470" || id === "0471") && d.W < d.H * 0.6) {
     messages.push("Крылья крышки садятся увереннее, когда ширина не меньше высоты.");
   }
   return messages;
@@ -188,6 +210,10 @@ export function flapNote(id: BoxId, d: Dims) {
   if (id === "0427") {
     const m = mailerMetrics(d);
     return `закатка ${fmtMm(m.roll)} мм, клапан ${fmtMm(m.tuck)} мм`;
+  }
+  if (id === "0471") {
+    const m = wrap471Metrics(d);
+    return `клапан ${fmtMm(m.flap)} мм, крючок ${fmtMm(m.hook)} мм`;
   }
   const m = wrapMetrics(d);
   return `язычок ${fmtMm(m.tongue)} × ${fmtMm(m.tongueW)} мм`;

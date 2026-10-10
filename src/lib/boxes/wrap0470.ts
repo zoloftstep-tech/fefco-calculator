@@ -256,11 +256,12 @@ function ear(
 }
 
 function wingPoly(span: number, depth: number, dir: 1 | -1): Pt[] {
-  const cut = Math.min(span * 0.12, 14);
+  const hinge = span * 0.08;
+  const tip = span * 0.22;
   return [
-    [0, cut],
-    [0, span - cut],
-    [dir * depth, span - cut * 1.4],
-    [dir * depth * 0.88, cut * 1.3],
+    [0, hinge],
+    [0, span - hinge],
+    [dir * depth, span - tip],
+    [dir * depth, tip],
   ];
 }

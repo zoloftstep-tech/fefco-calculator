@@ -16,7 +16,7 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "Калькулятор FEFCO",
   description:
-    "Развёртки FEFCO 0201, 0215, 0422, 0427 и 0470 по внутренним размерам и сборка в масштабе.",
+    "Развёртки FEFCO 0201, 0215, 0422, 0427, 0470 и 0471 по внутренним размерам и сборка в масштабе.",
 };
 
 export default function RootLayout({
