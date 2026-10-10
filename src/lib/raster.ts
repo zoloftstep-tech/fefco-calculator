@@ -186,7 +186,6 @@ export function renderPixels(
   fit: Fit,
   yaw: number,
   zoom: number,
-  tint?: (id: string) => [number, number, number] | null,
 ) {
   const scale = Math.min(w / VIEW_W, h / VIEW_H);
   const ox = (w - VIEW_W * scale) / 2;
@@ -239,7 +238,7 @@ export function renderPixels(
   for (const face of faces) {
     if (face.points.length < 3) continue;
     const poly = face.points.map(project);
-    const rgb = tint?.(face.id) ?? shade(face.fill, face.points);
+    const rgb = shade(face.fill, face.points);
     for (const [i, j, k] of triangulate(poly)) {
       fillTriangle(color, zbuf, w, h, poly[i], poly[j], poly[k], rgb);
     }
