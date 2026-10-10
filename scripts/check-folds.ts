@@ -89,7 +89,7 @@ for (const [id, dims] of [
 ] as const) {
   const flat = getFaces(id, dims, 0);
   assert(
-    flat.every((face) => face.points.every((point) => Math.abs(point[2]) < 0.8)),
+    flat.every((face) => face.points.every((point) => Math.abs(point[2]) < 4)),
     `${id} starts flat`,
   );
 }
@@ -131,6 +131,7 @@ assert(center(box427["lug-l-0"].points)[2] < 20, "0427 lug near the floor");
     Math.max(...lug.map((p) => p[0])) > Math.min(...hole.map((p) => p[0]));
   assert(overlap, "0427 lug meets the base slot");
   assert(Math.min(...box427["ear-l"].points.map((p) => p[0])) >= -0.2, "0427 lid ear is inside the end");
+  assert(Math.max(...box427["ear-l"].points.map((p) => p[0])) < 12, "0427 lid ear stays in the side pocket");
   assert(Math.min(...box427["lug-l-0"].points.map((p) => p[2])) > -1, "0427 lug does not pierce the floor");
   for (const id of ["dust-fl", "dust-fr", "dust-bl", "dust-br"] as const) {
     const dust = box427[id].points;
@@ -142,12 +143,36 @@ assert(
   "0427 draws both lid ears and the four wall ears",
 );
 
+const openEars = faceMap("0427", d427, 0.8);
+assert(Math.min(...openEars["ear-l"].points.map((p) => p[0])) < -20, "0427 lid ears stick out until the lid is down");
+const flapOut = faceMap("0427", d427, 0.94);
+assert(Math.min(...flapOut["tuck-ear-l"].points.map((p) => p[0])) < -15, "0427 flap ears stick out beside the tuck");
+assert(Math.min(...box427["tuck-ear-l"].points.map((p) => p[0])) > 0, "0427 flap ears enter the side wall");
+
+const step215 = faceMap("0215", d215, 0.2);
+assert(Math.min(...step215["bot-left"].points.map((p) => p[2])) > -2, "0215 dust is down before the female flap");
+assert(Math.min(...step215["bot-front"].points.map((p) => p[2])) < -40, "0215 female waits its turn");
+
 const box215 = faceMap("0215", d215, 1);
 assert(center(box215["bot-left"].points)[0] > 5 && center(box215["bot-left"].points)[0] < 150, "0215 left dust inside");
 assert(center(box215["bot-front"].points)[1] > 10, "0215 female on the floor");
 assert(center(box215["bot-back"].points)[1] < 190, "0215 male on the floor");
 assert(center(box215.lid.points)[2] > 130, "0215 lid up");
 assert(center(box215.tuck.points)[1] > 1, "0215 tuck inside");
+assert(
+  Math.min(...box215.lid.points.map((p) => p[2])) >
+    Math.max(...box215["top-left"].points.map((p) => p[2])),
+  "0215 lid sits above the top dust flaps",
+);
+{
+  const dustZ = center(box215["bot-left"].points)[2];
+  const femaleZ = center(box215["bot-front"].points)[2];
+  const maleZ = center(box215["bot-back"].points)[2];
+  assert(dustZ > 0 && dustZ < femaleZ && femaleZ < maleZ, "0215 bottom flaps stack above the floor");
+}
+
+const lid470 = faceMap("0470", d470, 0.66);
+assert(Math.min(...lid470["wing-l"].points.map((p) => p[0])) < -20, "0470 wings wait until the lid is down");
 
 const box470 = faceMap("0470", d470, 1);
 assert(center(box470.lid.points)[2] > 90, "0470 lid up");

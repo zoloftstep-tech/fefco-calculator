@@ -1,14 +1,17 @@
 "use client";
 
+import { useEffect, useLayoutEffect, useRef } from "react";
+import { Minus, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   panelCentroid,
-  type FaceFill,
   type NetModel,
   type PanelTone,
   type WorldFace,
 } from "@/lib/fefco";
 import { fmt, type Pt, type Vec3 } from "@/lib/math";
 import { VIEW_H, VIEW_W, type Fit } from "@/lib/project";
+import { paintModel } from "@/lib/raster";
 
 const TONE: Record<PanelTone, string> = {
   body: "#e7ece8",
@@ -121,125 +124,14 @@ function Dimension({
   );
 }
 
-function average(face: WorldFace, depth: (p: Vec3) => number) {
-  return face.points.reduce((sum, point) => sum + depth(point), 0) / face.points.length;
-}
-
-/** A panel still lying in the blank. A closed lid sits high, so max Z, not the span. */
-function onSheet(face: WorldFace) {
-  let top = -Infinity;
-  for (const point of face.points) top = Math.max(top, point[2]);
-  return top < 6;
-}
-
-function cameraDir(yaw: number): Vec3 {
-  const c = Math.cos(yaw);
-  const s = Math.sin(yaw);
-  return [0.75 * c - 0.86 * s, -0.75 * s - 0.86 * c, 0.687];
-}
-
-function sub(a: Vec3, b: Vec3): Vec3 {
-  return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-}
-
-function dot(a: Vec3, b: Vec3) {
-  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-}
-
-function planeOf(points: Vec3[], dir: Vec3) {
-  let x = 0;
-  let y = 0;
-  let z = 0;
-  for (let i = 0; i < points.length; i++) {
-    const a = points[i];
-    const b = points[(i + 1) % points.length];
-    x += (a[1] - b[1]) * (a[2] + b[2]);
-    y += (a[2] - b[2]) * (a[0] + b[0]);
-    z += (a[0] - b[0]) * (a[1] + b[1]);
-  }
-  const toward = dot([x, y, z], dir) >= 0 ? 1 : -1;
-  return { n: [x * toward, y * toward, z * toward] as Vec3, p: points[0] };
-}
-
-function sideOf(points: Vec3[], plane: { n: Vec3; p: Vec3 }, sign: 1 | -1) {
-  return points.every((point) => sign * dot(plane.n, sub(point, plane.p)) > 0.8);
-}
-
-type ScreenBox = { minX: number; maxX: number; minY: number; maxY: number };
-
-function screenBox(points: [number, number][]): ScreenBox {
-  let minX = Infinity;
-  let maxX = -Infinity;
-  let minY = Infinity;
-  let maxY = -Infinity;
-  for (const [x, y] of points) {
-    minX = Math.min(minX, x);
-    maxX = Math.max(maxX, x);
-    minY = Math.min(minY, y);
-    maxY = Math.max(maxY, y);
-  }
-  return { minX, maxX, minY, maxY };
-}
-
-function boxesOverlap(a: ScreenBox, b: ScreenBox) {
-  return a.minX <= b.maxX && b.minX <= a.maxX && a.minY <= b.maxY && b.minY <= a.maxY;
-}
-
-function orderFaces(
-  faces: WorldFace[],
-  screen: (p: Vec3) => [number, number],
-  depth: (p: Vec3) => number,
-  yaw: number,
-  flatSheet: boolean,
-) {
-  const dir = cameraDir(yaw);
-  const items = faces.map((face) => ({
-    face,
-    box: screenBox(face.points.map(screen)),
-    plane: planeOf(face.points, dir),
-    far: Math.min(...face.points.map(depth)),
-    near: Math.max(...face.points.map(depth)),
-  }));
-  const group = (face: WorldFace) => face.stack * 10 + (onSheet(face) ? 0 : 1);
-  items.sort((a, b) => {
-    if (a.face.stack !== b.face.stack) return a.face.stack - b.face.stack;
-    if (flatSheet) return a.face.id.localeCompare(b.face.id);
-    const sheet = (onSheet(a.face) ? 0 : 1) - (onSheet(b.face) ? 0 : 1);
-    if (sheet !== 0) return sheet;
-    const delta = average(a.face, depth) - average(b.face, depth);
-    return Math.abs(delta) > 0.05 ? delta : a.face.id.localeCompare(b.face.id);
-  });
-  if (flatSheet) return items.map((item) => item.face);
-
-  let swaps = 0;
-  const limit = items.length * items.length;
-  for (let i = 0; i < items.length && swaps < limit; i++) {
-    for (let j = i + 1; j < items.length; j++) {
-      if (group(items[i].face) !== group(items[j].face)) break;
-      if (!boxesOverlap(items[i].box, items[j].box)) continue;
-      if (items[i].near < items[j].far - 0.5) continue;
-      const iInFront = sideOf(items[i].face.points, items[j].plane, 1);
-      const jBehind = sideOf(items[j].face.points, items[i].plane, -1);
-      const iBehind = sideOf(items[i].face.points, items[j].plane, -1);
-      const jInFront = sideOf(items[j].face.points, items[i].plane, 1);
-      if ((iInFront || jBehind) && !(iBehind || jInFront)) {
-        const [item] = items.splice(i, 1);
-        items.splice(j, 0, item);
-        swaps += 1;
-        i -= 1;
-        break;
-      }
-    }
-  }
-  return items.map((item) => item.face);
-}
-
 export function ModelView({
   faces,
   fit,
   yaw,
+  zoom,
   dims,
   dragging,
+  onZoom,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -248,46 +140,57 @@ export function ModelView({
   faces: WorldFace[];
   fit: Fit;
   yaw: number;
+  zoom: number;
   dims: { L: number; W: number; H: number };
   dragging: boolean;
-  onPointerDown: (event: React.PointerEvent<SVGSVGElement>) => void;
-  onPointerMove: (event: React.PointerEvent<SVGSVGElement>) => void;
-  onPointerUp: (event: React.PointerEvent<SVGSVGElement>) => void;
+  onZoom: (direction: 1 | -1) => void;
+  onPointerDown: (event: React.PointerEvent<HTMLElement>) => void;
+  onPointerMove: (event: React.PointerEvent<HTMLElement>) => void;
+  onPointerUp: (event: React.PointerEvent<HTMLElement>) => void;
   onDoubleClick: () => void;
 }) {
-  const screen = (p: Vec3) => fit.toScreen(p, yaw);
-  const depth = (p: Vec3) => fit.depth(p, yaw);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const zs = faces.flatMap((face) => face.points.map((p) => p[2]));
-  const flatSheet = zs.length === 0 || Math.max(...zs) - Math.min(...zs) < 1.2;
-  const ordered = orderFaces(faces, screen, depth, yaw, flatSheet);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      onZoom(event.deltaY < 0 ? 1 : -1);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [onZoom]);
+
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+    const wrap = wrapRef.current;
+    if (!canvas || !wrap) return;
+    const paint = () => paintModel(canvas, faces, fit, yaw, zoom);
+    paint();
+    const observer = new ResizeObserver(paint);
+    observer.observe(wrap);
+    return () => observer.disconnect();
+  }, [faces, fit, yaw, zoom]);
+
+  const screen = (p: Vec3): [number, number] => {
+    const [x, y] = fit.toScreen(p, yaw);
+    return [VIEW_W / 2 + (x - VIEW_W / 2) * zoom, VIEW_H / 2 + (y - VIEW_H / 2) * zoom];
+  };
 
   const { L, W, H } = dims;
   const gap = Math.max(22, Math.max(L, W, H) * 0.14);
-  const foot = faces
-    .filter((face) => face.id === "floor" || face.id.startsWith("floor"))
-    .flatMap((face) => face.points.map(screen));
-  let footMinX = Infinity;
-  let footMaxX = -Infinity;
-  let footMinY = Infinity;
-  let footMaxY = -Infinity;
-  for (const p of foot) {
-    footMinX = Math.min(footMinX, p[0]);
-    footMaxX = Math.max(footMaxX, p[0]);
-    footMinY = Math.min(footMinY, p[1]);
-    footMaxY = Math.max(footMaxY, p[1]);
-  }
-
   const barMm = [50, 100, 200, 500, 1000].find((mm) => {
-    const px = fit.pxPerMm * 0.86 * mm;
+    const px = fit.pxPerMm * 0.86 * zoom * mm;
     return px >= 52 && px <= 168;
   }) ?? 100;
-  const barPx = fit.pxPerMm * 0.86 * barMm;
+  const barPx = fit.pxPerMm * 0.86 * zoom * barMm;
 
   return (
-    <svg
-      viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-      className={`h-[300px] w-full max-w-full touch-pan-y select-none sm:h-[460px] lg:h-[520px] ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
+    <div
+      ref={wrapRef}
+      className={`relative h-[300px] w-full max-w-full touch-pan-y select-none sm:h-[460px] lg:h-[520px] ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
       role="img"
       aria-label="Объёмная сборка коробки"
       onPointerDown={onPointerDown}
@@ -296,100 +199,69 @@ export function ModelView({
       onPointerCancel={onPointerUp}
       onDoubleClick={onDoubleClick}
     >
-      <defs>
-        <Arrow id="model-arrow" />
-        <Gradient id="floor" stops={["#d5ddd8", "#e4ebe7", "#c9d3ce"]} />
-        <Gradient id="front" stops={["#f7faf8", "#e7ece8", "#d5ded9"]} />
-        <Gradient id="side" stops={["#d5ded9", "#b7c2bc"]} />
-        <Gradient id="back" stops={["#cfd8d3", "#b7c2bc", "#9aabb3"]} vertical />
-        <Gradient id="flap" stops={["#f4f7f5", "#d5ded9"]} />
-        <Gradient id="flapDark" stops={["#e3eae6", "#c5d0cb"]} />
-        <Gradient id="lock" stops={["#dfe7e3", "#aebbb6"]} />
-        <Gradient id="lid" stops={["#f3f7f5", "#dce5e1", "#c5d0cb"]} />
-        <Gradient id="tuck" stops={["#d5ded9", "#9eaea8"]} />
-      </defs>
-
-      {foot.length > 0 && (
-        <ellipse
-          cx={(footMinX + footMaxX) / 2 + 8}
-          cy={(footMinY + footMaxY) / 2 + 18}
-          rx={Math.max((footMaxX - footMinX) * 0.46, 12)}
-          ry={Math.max((footMaxY - footMinY) * 0.28, 8)}
-          fill="#1c2824"
-          opacity={0.12}
+      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+      <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} className="pointer-events-none absolute inset-0 h-full w-full">
+        <defs>
+          <Arrow id="model-arrow" />
+        </defs>
+        <Dimension
+          a={screen([0, -gap, 0])}
+          b={screen([L, -gap, 0])}
+          fromA={screen([0, 0, 0])}
+          fromB={screen([L, 0, 0])}
+          label={`Д = ${fmt(L)}`}
+          marker="model-arrow"
         />
-      )}
-
-      {ordered.map((face) => (
-        <g key={face.id}>
-          <title>{face.name}</title>
-          <polygon
-            points={pts(face.points.map(screen))}
-            fill={face.fill === "slot" ? "#24312c" : `url(#${face.fill as FaceFill})`}
-            fillOpacity={1}
-            stroke={face.fill === "slot" ? "#24312c" : "#2c3a36"}
-            strokeWidth={face.fill === "slot" ? 0.6 : 1.15}
-            strokeLinejoin="round"
-          />
+        <Dimension
+          a={screen([L + gap, 0, 0])}
+          b={screen([L + gap, W, 0])}
+          fromA={screen([L, 0, 0])}
+          fromB={screen([L, W, 0])}
+          label={`Ш = ${fmt(W)}`}
+          marker="model-arrow"
+        />
+        <Dimension
+          a={screen([-gap, -gap * 0.35, 0])}
+          b={screen([-gap, -gap * 0.35, H])}
+          fromA={screen([0, 0, 0])}
+          fromB={screen([0, 0, H])}
+          label={`В = ${fmt(H)}`}
+          marker="model-arrow"
+        />
+        <g>
+          <line x1={28} y1={VIEW_H - 28} x2={28 + barPx} y2={VIEW_H - 28} stroke="#1c2824" strokeWidth={2} />
+          <line x1={28} y1={VIEW_H - 34} x2={28} y2={VIEW_H - 22} stroke="#1c2824" strokeWidth={2} />
+          <line x1={28 + barPx} y1={VIEW_H - 34} x2={28 + barPx} y2={VIEW_H - 22} stroke="#1c2824" strokeWidth={2} />
+          <text x={28 + barPx / 2} y={VIEW_H - 38} textAnchor="middle" fontSize={13} fill="#1c2824">
+            {fmt(barMm)} мм
+          </text>
         </g>
-      ))}
-
-      <Dimension
-        a={screen([0, -gap, 0])}
-        b={screen([L, -gap, 0])}
-        fromA={screen([0, 0, 0])}
-        fromB={screen([L, 0, 0])}
-        label={`Д = ${fmt(L)}`}
-        marker="model-arrow"
-      />
-      <Dimension
-        a={screen([L + gap, 0, 0])}
-        b={screen([L + gap, W, 0])}
-        fromA={screen([L, 0, 0])}
-        fromB={screen([L, W, 0])}
-        label={`Ш = ${fmt(W)}`}
-        marker="model-arrow"
-      />
-      <Dimension
-        a={screen([-gap, -gap * 0.35, 0])}
-        b={screen([-gap, -gap * 0.35, H])}
-        fromA={screen([0, 0, 0])}
-        fromB={screen([0, 0, H])}
-        label={`В = ${fmt(H)}`}
-        marker="model-arrow"
-      />
-
-      <g>
-        <line x1={28} y1={VIEW_H - 28} x2={28 + barPx} y2={VIEW_H - 28} stroke="#1c2824" strokeWidth={2} />
-        <line x1={28} y1={VIEW_H - 34} x2={28} y2={VIEW_H - 22} stroke="#1c2824" strokeWidth={2} />
-        <line x1={28 + barPx} y1={VIEW_H - 34} x2={28 + barPx} y2={VIEW_H - 22} stroke="#1c2824" strokeWidth={2} />
-        <text x={28 + barPx / 2} y={VIEW_H - 38} textAnchor="middle" fontSize={13} fill="#1c2824">
-          {fmt(barMm)} мм
-        </text>
-      </g>
-    </svg>
-  );
-}
-
-function Gradient({
-  id,
-  stops,
-  vertical = false,
-}: {
-  id: string;
-  stops: string[];
-  vertical?: boolean;
-}) {
-  return (
-    <linearGradient id={id} x1="0%" y1="0%" x2={vertical ? "0%" : "100%"} y2="100%">
-      {stops.map((color, index) => (
-        <stop
-          key={color}
-          offset={`${(index / Math.max(stops.length - 1, 1)) * 100}%`}
-          stopColor={color}
-        />
-      ))}
-    </linearGradient>
+      </svg>
+      <div className="absolute top-2 right-2 z-10 flex gap-1">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label="Отдалить"
+          onPointerDown={(event) => event.stopPropagation()}
+          onDoubleClick={(event) => event.stopPropagation()}
+          onClick={() => onZoom(-1)}
+        >
+          <Minus />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label="Приблизить"
+          onPointerDown={(event) => event.stopPropagation()}
+          onDoubleClick={(event) => event.stopPropagation()}
+          onClick={() => onZoom(1)}
+        >
+          <Plus />
+        </Button>
+      </div>
+    </div>
   );
 }
 

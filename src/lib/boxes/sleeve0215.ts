@@ -24,12 +24,12 @@ function rankClosed(face: WorldFace, low: number, high: number, rank: number) {
 export function sleeveFaces(d: Dims, t: number): WorldFace[] {
   const { L, W, H } = d;
   const m = sleeveMetrics(d);
-  const dustA = (u: number) => phase(u, 0.02, 0.26, -8, 90);
-  const femaleA = (u: number) => phase(u, 0.2, 0.46, -8, 90);
-  const maleA = (u: number) => phase(u, 0.38, 0.62, -8, 90);
-  const topA = (u: number) => phase(u, 0.56, 0.76, -12, 90);
-  const lidA = (u: number) => phase(u, 0.68, 0.88, -12, 90);
-  const tuckA = (u: number) => phase(u, 0.84, 1, 0, 104);
+  const dustA = (u: number) => phase(u, 0, 0.16, 0, 90);
+  const femaleA = (u: number) => phase(u, 0.18, 0.36, 0, 90);
+  const maleA = (u: number) => phase(u, 0.38, 0.56, 0, 90);
+  const topA = (u: number) => phase(u, 0.58, 0.72, 0, 90);
+  const lidA = (u: number) => phase(u, 0.74, 0.88, 0, 90);
+  const tuckA = (u: number) => phase(u, 0.88, 1, 0, 104);
   const fixed = () => 90;
 
   const panels: PanelDef[] = [
@@ -67,6 +67,7 @@ export function sleeveFaces(d: Dims, t: number): WorldFace[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
+      lift: 1.2,
     },
     {
       id: "bot-right",
@@ -80,6 +81,7 @@ export function sleeveFaces(d: Dims, t: number): WorldFace[] {
       fill: "flapDark",
       tone: "flap",
       stack: 0,
+      lift: 1.2,
     },
     {
       id: "bot-front",
@@ -98,6 +100,7 @@ export function sleeveFaces(d: Dims, t: number): WorldFace[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
+      lift: 2.8,
     },
     {
       id: "bot-slot",
@@ -129,6 +132,7 @@ export function sleeveFaces(d: Dims, t: number): WorldFace[] {
       fill: "flapDark",
       tone: "flap",
       stack: 0,
+      lift: 4.4,
     },
     {
       id: "top-left",
@@ -142,6 +146,7 @@ export function sleeveFaces(d: Dims, t: number): WorldFace[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
+      lift: 1.2,
     },
     {
       id: "top-right",
@@ -155,6 +160,7 @@ export function sleeveFaces(d: Dims, t: number): WorldFace[] {
       fill: "flapDark",
       tone: "flap",
       stack: 0,
+      lift: 1.2,
     },
     {
       id: "lid",
@@ -173,6 +179,8 @@ export function sleeveFaces(d: Dims, t: number): WorldFace[] {
       fill: "lid",
       tone: "lid",
       stack: 0,
+      // Local +z points into the box once the lid is down, so the offset is negative.
+      lift: -2.6,
     },
     {
       id: "tuck",
@@ -186,10 +194,11 @@ export function sleeveFaces(d: Dims, t: number): WorldFace[] {
       fill: "tuck",
       tone: "flap",
       stack: 0,
+      lift: 1.4,
     },
   ];
 
-  const faces = facesFrom(panels, t);
+  const faces = facesFrom(panels, t).filter((face) => face.id !== "floor");
   for (const face of faces) {
     if (face.id === "bot-left" || face.id === "bot-right") rankClosed(face, -2, 6, 1);
     if (face.id === "bot-front" || face.id === "bot-slot") rankClosed(face, -2, 8, 2);

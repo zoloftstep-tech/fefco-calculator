@@ -57,13 +57,15 @@ export type PanelDef = {
   tone: PanelTone;
   stack: number;
   netLabel?: string;
+  /** Millimetres along the panel normal. Folded view only, so the net stays flat. */
+  lift?: number;
 };
 
 type Xform = (p: Vec3) => Vec3;
 
 const identity: Xform = (p) => p;
 
-export function xforms(panels: PanelDef[], t: number) {
+export function xforms(panels: PanelDef[], t: number, inheritLift = false) {
   const byId = new Map(panels.map((panel) => [panel.id, panel]));
   const cache = new Map<string, Xform>();
 
@@ -74,8 +76,10 @@ export function xforms(panels: PanelDef[], t: number) {
     if (!panel) throw new Error(`Нет панели ${id}`);
     const parent = panel.parent ? build(panel.parent) : identity;
     const rad = (panel.sign * panel.angle(t) * Math.PI) / 180;
+    const extra = inheritLift ? (panel.lift ?? 0) + (panel.fill === "slot" ? 0.7 : 0) : 0;
     const xf: Xform = (local) => {
-      const rotated = panel.axis === "x" ? rotX(local, rad) : rotY(local, rad);
+      const lifted: Vec3 = extra ? [local[0], local[1], local[2] + extra] : local;
+      const rotated = panel.axis === "x" ? rotX(lifted, rad) : rotY(lifted, rad);
       return parent(vadd(panel.hinge, rotated));
     };
     cache.set(id, xf);
@@ -87,14 +91,13 @@ export function xforms(panels: PanelDef[], t: number) {
 }
 
 export function facesFrom(panels: PanelDef[], t: number): WorldFace[] {
-  const map = xforms(panels, t);
+  const map = xforms(panels, t, true);
   return panels.map((panel) => {
     const xf = map.get(panel.id)!;
-    const lift = panel.fill === "slot" ? 0.7 : 0;
     return {
       id: panel.id,
       name: panel.name,
-      points: panel.poly.map(([x, y]) => xf([x, y, lift])),
+      points: panel.poly.map(([x, y]) => xf([x, y, 0])),
       fill: panel.fill,
       stack: panel.stack,
     };

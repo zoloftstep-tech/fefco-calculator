@@ -75,15 +75,25 @@ function dustPoly(height: number, depth: number, dir: 1 | -1, up: 1 | -1): Pt[] 
   ];
 }
 
-function tuckPoly(length: number, depth: number): Pt[] {
-  const end = Math.min(depth * 0.72, length * 0.16, 28);
+function tuckPoly(length: number, depth: number, side: number): Pt[] {
   return [
-    [end, 0],
-    [length - end, 0],
-    [length - end * 0.25, depth * 0.62],
-    [length * 0.8, depth],
-    [length * 0.2, depth],
-    [end * 0.25, depth * 0.62],
+    [side, 0],
+    [length - side, 0],
+    [length - side, depth],
+    [side, depth],
+  ];
+}
+
+/** Ears on the closing flap. They stick out sideways, then fold into the ends. */
+function tuckEarPoly(depth: number, reach: number, dir: 1 | -1): Pt[] {
+  const y0 = Math.max(2, depth * 0.08);
+  const y1 = depth * 0.9;
+  return [
+    [0, y0],
+    [0, y1],
+    [dir * reach * 0.62, y1],
+    [dir * reach, y1 * 0.58],
+    [dir * reach * 0.28, y0],
   ];
 }
 
@@ -97,9 +107,11 @@ export function mailerPanels(d: Dims): PanelDef[] {
   const ends = (t: number) => phase(t, 0.22, 0.4, 0, 90);
   const rolls = (t: number) => phase(t, 0.36, 0.58, 0, ROLL);
   const lugs = (t: number) => phase(t, 0.52, 0.7, 0, 22);
-  const ears = (t: number) => phase(t, 0.62, 0.8, 0, 102);
-  const lid = (t: number) => phase(t, 0.72, 0.9, 0, 90);
-  const tuckAngle = (t: number) => phase(t, 0.86, 1, 0, 104);
+  const lid = (t: number) => phase(t, 0.62, 0.76, 0, 90);
+  const ears = (t: number) => phase(t, 0.76, 0.88, 0, 94);
+  const tuckAngle = (t: number) => phase(t, 0.86, 0.94, 0, 104);
+  const flapEars = (t: number) => phase(t, 0.93, 1, 0, 88);
+  const side = Math.max(inset, 10);
 
   const panels: PanelDef[] = [
     {
@@ -198,6 +210,7 @@ export function mailerPanels(d: Dims): PanelDef[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
+      lift: 0.8,
       netLabel: "Ушко",
     },
     {
@@ -212,6 +225,7 @@ export function mailerPanels(d: Dims): PanelDef[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
+      lift: 0.8,
       netLabel: "Ушко",
     },
     {
@@ -222,11 +236,41 @@ export function mailerPanels(d: Dims): PanelDef[] {
       axis: "x",
       sign: 1,
       angle: tuckAngle,
-      poly: tuckPoly(L, tuck),
+      poly: tuckPoly(L, tuck, side),
       fill: "tuck",
       tone: "flap",
       stack: 0,
       netLabel: "Клапан",
+    },
+    {
+      id: "tuck-ear-l",
+      name: "Левое ушко клапана",
+      parent: "tuck",
+      hinge: [side, 0, 0],
+      axis: "y",
+      sign: 1,
+      angle: flapEars,
+      poly: tuckEarPoly(tuck, Math.min(H * 0.55, W * 0.28), -1),
+      fill: "flap",
+      tone: "flap",
+      stack: 0,
+      lift: 1.2,
+      netLabel: "Ушко",
+    },
+    {
+      id: "tuck-ear-r",
+      name: "Правое ушко клапана",
+      parent: "tuck",
+      hinge: [L - side, 0, 0],
+      axis: "y",
+      sign: -1,
+      angle: flapEars,
+      poly: tuckEarPoly(tuck, Math.min(H * 0.55, W * 0.28), 1),
+      fill: "flap",
+      tone: "flap",
+      stack: 0,
+      lift: 1.2,
+      netLabel: "Ушко",
     },
   ];
 

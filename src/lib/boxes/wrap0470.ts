@@ -31,9 +31,9 @@ export function wrapPanels(d: Dims): PanelDef[] {
   const lip = (t: number) => phase(t, 0.3, 0.48, 0, 158);
   const back = (t: number) => phase(t, 0.28, 0.44, 0, 90);
   const backEars = (t: number) => phase(t, 0.38, 0.54, 0, 96);
-  const lid = (t: number) => phase(t, 0.5, 0.7, 0, 90);
-  const wings = (t: number) => phase(t, 0.62, 0.8, 0, 112);
-  const lidFront = (t: number) => phase(t, 0.74, 0.9, 0, 108);
+  const lid = (t: number) => phase(t, 0.5, 0.66, 0, 90);
+  const wings = (t: number) => phase(t, 0.66, 0.8, 0, 100);
+  const lidFront = (t: number) => phase(t, 0.74, 0.88, 0, 100);
   const tongue = (t: number) => phase(t, 0.86, 1, 0, 52);
 
   const notch = m.tongueW * 0.55;
@@ -99,6 +99,8 @@ export function wrapPanels(d: Dims): PanelDef[] {
       fill: "lock",
       tone: "lock",
       stack: 0,
+      // Local +z ends up outside the front wall, so the lip is pulled back inside.
+      lift: -0.8,
       netLabel: "Кромка",
     },
     {
@@ -158,10 +160,10 @@ export function wrapPanels(d: Dims): PanelDef[] {
       stack: 0,
       netLabel: "Торец",
     },
-    ear("ear-lf", "Переднее ушко", "front", [0, 0, 0], "y", 1, sideEar(H, m.ear, -1), frontEars),
-    ear("ear-rf", "Переднее ушко", "front", [L, 0, 0], "y", -1, sideEar(H, m.ear, -1).map(([x, y]) => [-x, y]), frontEars),
-    ear("ear-lb", "Заднее ушко", "back", [0, 0, 0], "y", 1, sideEar(H, m.ear, 1), backEars),
-    ear("ear-rb", "Заднее ушко", "back", [L, 0, 0], "y", -1, sideEar(H, m.ear, 1).map(([x, y]) => [-x, y]), backEars),
+    ear("ear-lf", "Переднее ушко", "front", [0, 0, 0], "y", 1, sideEar(H, m.ear, -1), frontEars, 0.6),
+    ear("ear-rf", "Переднее ушко", "front", [L, 0, 0], "y", -1, sideEar(H, m.ear, -1).map(([x, y]) => [-x, y]), frontEars, 0.6),
+    ear("ear-lb", "Заднее ушко", "back", [0, 0, 0], "y", 1, sideEar(H, m.ear, 1), backEars, 0.6),
+    ear("ear-rb", "Заднее ушко", "back", [L, 0, 0], "y", -1, sideEar(H, m.ear, 1).map(([x, y]) => [-x, y]), backEars, 0.6),
     {
       id: "lid",
       name: "Крышка",
@@ -181,8 +183,8 @@ export function wrapPanels(d: Dims): PanelDef[] {
       stack: 0,
       netLabel: "Крышка",
     },
-    ear("wing-l", "Крыло крышки", "lid", [0, 0, 0], "y", 1, wingPoly(W, m.wing, -1), wings),
-    ear("wing-r", "Крыло крышки", "lid", [L, 0, 0], "y", -1, wingPoly(W, m.wing, 1), wings),
+    ear("wing-l", "Крыло крышки", "lid", [0, 0, 0], "y", 1, wingPoly(W, m.wing, -1), wings, 2),
+    ear("wing-r", "Крыло крышки", "lid", [L, 0, 0], "y", -1, wingPoly(W, m.wing, 1), wings, 2),
     {
       id: "lid-front",
       name: "Клапан крышки",
@@ -200,6 +202,7 @@ export function wrapPanels(d: Dims): PanelDef[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
+      lift: 1.6,
       netLabel: "Клапан",
     },
     {
@@ -219,6 +222,7 @@ export function wrapPanels(d: Dims): PanelDef[] {
       fill: "tuck",
       tone: "flap",
       stack: 0,
+      lift: 2.2,
       netLabel: "Язычок",
     },
   ];
@@ -233,6 +237,7 @@ function ear(
   sign: 1 | -1,
   poly: Pt[],
   angle: (t: number) => number,
+  lift = 0,
 ): PanelDef {
   return {
     id,
@@ -246,6 +251,7 @@ function ear(
     fill: "flap",
     tone: "flap",
     stack: 0,
+    lift,
   };
 }
 

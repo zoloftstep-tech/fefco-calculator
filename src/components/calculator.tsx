@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Download, Pause, Play, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,6 +56,10 @@ function activeStage(at: number[], t: number) {
 
 export function Calculator() {
   const [typeId, setTypeId] = useState<BoxId>("0427");
+  const [zoom, setZoom] = useState(1);
+  const nudgeZoom = useCallback((direction: 1 | -1) => {
+    setZoom((current) => Math.min(2.6, Math.max(0.55, current * (direction > 0 ? 1.12 : 1 / 1.12))));
+  }, []);
   const [fields, setFields] = useState<Fields>({
     L: String(initial.L),
     W: String(initial.W),
@@ -339,8 +343,10 @@ export function Calculator() {
                 faces={faces}
                 fit={fit}
                 yaw={yaw}
+                zoom={zoom}
                 dims={dims}
                 dragging={view.current.dragging}
+                onZoom={nudgeZoom}
                 onPointerDown={(event) => {
                   if (event.button !== 0 && event.pointerType === "mouse") return;
                   dragX.current = event.clientX;
@@ -383,7 +389,7 @@ export function Calculator() {
             )}
 
             <p className="text-center text-xs text-[#5c6b66]">
-              Вертикально страница листается. Модель поворачивается движением вбок, двойной щелчок возвращает ракурс.
+              Кнопки и колёсико приближают модель. Вертикально страница листается. Поворот — движением вбок, двойной щелчок возвращает ракурс.
             </p>
 
             <div className="mx-auto mt-4 max-w-3xl">
