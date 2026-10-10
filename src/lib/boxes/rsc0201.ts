@@ -2,6 +2,7 @@ import type { Pt, Vec3 } from "@/lib/math";
 import { polygonArea } from "@/lib/math";
 import type { NetModel, PanelTone, WorldFace } from "@/lib/fold";
 import type { Dims } from "@/lib/fefco-types";
+import { GIRTH_COMP_FROM_GLUE, resolveBoard } from "@/lib/params/board";
 
 const MAX_ANGLE = 135;
 const HALF = MAX_ANGLE / 2;
@@ -50,12 +51,13 @@ function face(
 }
 
 export function rscFaces(d: Dims, t: number, yaw: number): WorldFace[] {
-  const { L, W, H } = d;
+  const { L, W, H, T } = resolveBoard(d);
   const slider = Math.max(0, Math.min(1, t)) * MAX_ANGLE;
   const { small, big } = flapAngles(slider);
   const ranks = flapRanks(flapPosition(slider), yaw);
   const f = W / 2;
-  const hShort = H - Math.min(H * 0.008, 1);
+  /** Minor flaps sit one caliper below majors when closed. */
+  const hShort = H - Math.min(T, Math.min(H * 0.008, 1) + T * 0.35);
   const smallRad = (small * Math.PI) / 180;
   const bigRad = (big * Math.PI) / 180;
   const cs = Math.cos(smallRad);
@@ -103,15 +105,16 @@ export function rscFaces(d: Dims, t: number, yaw: number): WorldFace[] {
 }
 
 export function rscNet(d: Dims): NetModel {
-  const { L, W, H, G } = d;
+  const { L, W, H, G, T } = resolveBoard(d);
   const f = W / 2;
-  const width = 2 * (L + W) + G;
+  const sizes = [L, W, L, W].map((dim, i) => dim + GIRTH_COMP_FROM_GLUE[i] * T);
+  const width = sizes.reduce((sum, w) => sum + w, 0) + G;
   const height = H + W;
   const panels: NetModel["panels"] = [];
   const cuts: [Pt, Pt][] = [];
   const folds: [Pt, Pt][] = [];
-  const sizes = [L, W, L, W];
   const names = ["Д", "Ш", "Д", "Ш"];
+  const kerf = Math.max(1.2, T + 0.4);
 
   const rect = (x: number, y: number, w: number, h: number, tone: PanelTone, label?: string) => {
     panels.push({
@@ -140,16 +143,18 @@ export function rscNet(d: Dims): NetModel {
       [x + w, f + H],
     ]);
     if (i < 3) {
+      /** Slot kerf between adjacent flaps (idealized cut gap ≈ t + clearance). */
+      const gap = Math.min(kerf, f * 0.2);
       cuts.push([
         [x + w, 0],
-        [x + w, f],
+        [x + w, f - gap * 0.15],
       ]);
       folds.push([
         [x + w, f],
         [x + w, f + H],
       ]);
       cuts.push([
-        [x + w, f + H],
+        [x + w, f + H + gap * 0.15],
         [x + w, height],
       ]);
     }

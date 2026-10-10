@@ -23,18 +23,18 @@ import { fitPoints } from "@/lib/project";
 const PLAY_MS = 9000;
 const ORDER: BoxId[] = ["0427", "0422", "0470", "0471", "0215", "0201"];
 
-type Fields = { L: string; W: string; H: string; G: string };
+type Fields = { L: string; W: string; H: string; G: string; T: string };
 
 const initial = CATALOG["0427"].defaults;
 
 function parseDims(fields: Fields): Dims | null {
-  const raw = [fields.L, fields.W, fields.H, fields.G];
+  const raw = [fields.L, fields.W, fields.H, fields.G, fields.T];
   if (raw.some((value) => value.trim() === "")) return null;
-  const [L, W, H, G] = raw.map(Number);
-  if (![L, W, H, G].every(Number.isFinite)) return null;
-  if (L <= 0 || W <= 0 || H <= 0 || G < 0) return null;
+  const [L, W, H, G, T] = raw.map(Number);
+  if (![L, W, H, G, T].every(Number.isFinite)) return null;
+  if (L <= 0 || W <= 0 || H <= 0 || G < 0 || T <= 0) return null;
   if (!Number.isFinite(L * W * H)) return null;
-  return { L, W, H, G };
+  return { L, W, H, G, T };
 }
 
 function anchors(dims: Dims): Vec3[] {
@@ -65,6 +65,7 @@ export function Calculator() {
     W: String(initial.W),
     H: String(initial.H),
     G: String(initial.G),
+    T: String(initial.T),
   });
   const view = useRef({
     t: 0,
@@ -116,11 +117,18 @@ export function Calculator() {
   const width = dims?.W;
   const height = dims?.H;
   const glue = dims?.G;
+  const thickness = dims?.T;
   const fit = useMemo(() => {
-    if (length === undefined || width === undefined || height === undefined || glue === undefined) {
+    if (
+      length === undefined ||
+      width === undefined ||
+      height === undefined ||
+      glue === undefined ||
+      thickness === undefined
+    ) {
       return null;
     }
-    const box = { L: length, W: width, H: height, G: glue };
+    const box = { L: length, W: width, H: height, G: glue, T: thickness };
     return fitPoints(
       [
         getFaces(typeId, box, 0).flatMap((face) => face.points),
@@ -130,9 +138,9 @@ export function Calculator() {
       length / 2,
       width / 2,
     );
-  }, [typeId, length, width, height, glue]);
+  }, [typeId, length, width, height, glue, thickness]);
   const warnings = dims ? warningsFor(typeId, dims) : [
-    "Введите положительные размеры коробки. Клеевой клапан может быть нулевым.",
+    "Введите положительные размеры коробки. Клеевой клапан может быть нулевым, толщина картона — больше нуля.",
   ];
   const stageIndex = activeStage(meta.stages.map((stage) => stage.at), t);
   const yawDeg = ((yaw * 180) / Math.PI) % 360;
@@ -161,6 +169,7 @@ export function Calculator() {
       W: String(defaults.W),
       H: String(defaults.H),
       G: String(defaults.G),
+      T: String(defaults.T),
     });
     view.current.t = 0;
     view.current.playing = true;
@@ -185,7 +194,7 @@ export function Calculator() {
     const xml = serializeNet(
       net,
       title,
-      "Идеализированная развёртка по внутренним размерам, без поправки на толщину картона, биговку и прорези. Не является штампом.",
+      `Развёртка по внутренним размерам с калибром ${dims.T} мм (girth/tuck/slots). Без flute-таблиц производства и без штамповых припусков. Не является штампом.`,
     );
     const blob = new Blob([xml], { type: "image/svg+xml;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -212,9 +221,9 @@ export function Calculator() {
         Калькулятор FEFCO
       </h1>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-[#737b84] sm:text-[15px]">
-        Внутренние размеры в миллиметрах задают и развёртку, и сборку.
-        0427, 0422, 0470 и 0471 складываются с плоского листа. 0201 и 0215 показывают
-        уже склеенный рукав: клапаны, дно 1-2-3 и крышку.
+        Внутренние размеры и толщина картона задают развёртку и сборку: зазоры
+        клапанов, прорези и girth пересчитываются каскадом. 0427, 0422, 0470 и 0471
+        складываются с плоского листа. 0201 и 0215 показывают уже склеенный рукав.
       </p>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -291,6 +300,15 @@ export function Calculator() {
                 onChange={(value) => setField("G", value)}
               />
             )}
+            <DimensionField
+              id="thickness"
+              label="Толщина картона — t, мм"
+              value={fields.T}
+              min={0.5}
+              max={8}
+              step={0.1}
+              onChange={(value) => setField("T", value)}
+            />
           </div>
 
           <Button type="button" variant="secondary" onClick={resetSizes}>
@@ -316,8 +334,8 @@ export function Calculator() {
           </div>
 
           <p className="mt-4 text-xs leading-5 text-[#737b84]">
-            Геометрия score-to-score: толщина картона, ширина прорезей и
-            производственные зазоры не заложены. Развёртка не заменяет штамп.
+            Толщина влияет на girth, tuck clearance и прорези. Полные flute-таблицы
+            производства (δ из d0427) ещё не подключены. Развёртка не заменяет штамп.
             Формула заготовки: {meta.formula}.
           </p>
         </aside>
@@ -488,6 +506,7 @@ function DimensionField({
   value,
   min,
   max,
+  step = 1,
   onChange,
 }: {
   id: string;
@@ -495,6 +514,7 @@ function DimensionField({
   value: string;
   min: number;
   max: number;
+  step?: number;
   onChange: (value: string) => void;
 }) {
   const numeric = Number(value);
@@ -511,7 +531,7 @@ function DimensionField({
         id={id}
         type="number"
         min={min}
-        step={1}
+        step={step}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className="h-10 bg-white text-base"
@@ -520,7 +540,7 @@ function DimensionField({
         className="mt-3"
         min={min}
         max={max}
-        step={1}
+        step={step}
         value={[slider]}
         onValueChange={(next) => {
           const resolved = Array.isArray(next) ? next[0] : next;

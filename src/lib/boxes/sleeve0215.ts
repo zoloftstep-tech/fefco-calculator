@@ -1,17 +1,19 @@
 import { facesFrom, phase, type NetModel, type PanelDef, type PanelTone, type WorldFace } from "@/lib/fold";
 import { polygonArea, type Pt } from "@/lib/math";
 import type { Dims } from "@/lib/fefco-types";
+import { GIRTH_COMP_FROM_GLUE, resolveBoard } from "@/lib/params/board";
 
 export function sleeveMetrics(d: Dims) {
-  const dust = d.L / 3;
-  const shoulder = Math.min(d.W * 0.32, dust * Math.tan((15 * Math.PI) / 180));
-  const female = Math.min(d.W * 0.78, d.W - 8);
-  const male = Math.min(d.W * 0.55, female - 6);
-  const tongue = Math.max(16, Math.min(36, Math.max(20, d.W * 0.18)));
-  const topDust = Math.min(d.H * 0.8, d.L * 0.25);
-  const tuck = Math.min(d.H * 0.95, Math.max(16, d.H * 0.72));
-  const slotW = Math.min(d.L * 0.34, d.L - 16);
-  return { dust, shoulder, female, male, tongue, topDust, tuck, slotW };
+  const { L, W, H, T, tuckClearance, slotKerf } = resolveBoard(d);
+  const dust = L / 3;
+  const shoulder = Math.min(W * 0.32, dust * Math.tan((15 * Math.PI) / 180));
+  const female = Math.min(W * 0.78, W - 8);
+  const male = Math.min(W * 0.55, female - 6);
+  const tongue = Math.max(16, Math.min(36, Math.max(20, W * 0.18)));
+  const topDust = Math.min(H * 0.8, L * 0.25);
+  const tuck = Math.min(H * 0.95, Math.max(16, H * 0.72)) + tuckClearance * 0.35;
+  const slotW = Math.min(L * 0.34, L - 16);
+  return { dust, shoulder, female, male, tongue, topDust, tuck, slotW, T, tuckClearance, slotKerf };
 }
 
 function rankClosed(face: WorldFace, low: number, high: number, rank: number) {
@@ -26,11 +28,16 @@ export function sleeveFaces(d: Dims, t: number): WorldFace[] {
   const m = sleeveMetrics(d);
   const dustA = (u: number) => phase(u, 0, 0.16, 0, 90);
   const femaleA = (u: number) => phase(u, 0.18, 0.36, 0, 90);
-  const maleA = (u: number) => phase(u, 0.38, 0.56, 0, 90);
+  const maleA = (u: number) => phase(u, 0.38, 0.56, 0, 92);
   const topA = (u: number) => phase(u, 0.58, 0.72, 0, 90);
   const lidA = (u: number) => phase(u, 0.74, 0.88, 0, 90);
-  const tuckA = (u: number) => phase(u, 0.88, 1, 0, 104);
+  const tuckA = (u: number) => phase(u, 0.88, 1, 0, 106);
   const fixed = () => 90;
+  const liftDust = m.T * 0.85;
+  const liftFemale = m.T * 1.85;
+  const liftMale = m.T * 2.9;
+  const liftLid = -m.T * 1.7;
+  const liftTuck = m.T * 0.95;
 
   const panels: PanelDef[] = [
     {
@@ -67,7 +74,7 @@ export function sleeveFaces(d: Dims, t: number): WorldFace[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
-      lift: 1.2,
+      lift: liftDust,
     },
     {
       id: "bot-right",
@@ -81,7 +88,7 @@ export function sleeveFaces(d: Dims, t: number): WorldFace[] {
       fill: "flapDark",
       tone: "flap",
       stack: 0,
-      lift: 1.2,
+      lift: liftDust,
     },
     {
       id: "bot-front",
@@ -100,7 +107,7 @@ export function sleeveFaces(d: Dims, t: number): WorldFace[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
-      lift: 2.8,
+      lift: liftFemale,
     },
     {
       id: "bot-slot",
@@ -113,8 +120,8 @@ export function sleeveFaces(d: Dims, t: number): WorldFace[] {
       poly: [
         [(L - m.slotW) / 2, m.female * 0.46],
         [(L + m.slotW) / 2, m.female * 0.46],
-        [(L + m.slotW) / 2, m.female * 0.62],
-        [(L - m.slotW) / 2, m.female * 0.62],
+        [(L + m.slotW) / 2, m.female * 0.46 + Math.max(m.slotKerf * 1.1, m.female * 0.16)],
+        [(L - m.slotW) / 2, m.female * 0.46 + Math.max(m.slotKerf * 1.1, m.female * 0.16)],
       ],
       fill: "slot",
       tone: "slot",
@@ -128,11 +135,11 @@ export function sleeveFaces(d: Dims, t: number): WorldFace[] {
       axis: "x",
       sign: -1,
       angle: maleA,
-      poly: tongueFlap(L, m.male, m.slotW * 0.62, m.tongue, -1),
+      poly: tongueFlap(L, m.male, Math.max(12, m.slotW * 0.62 - m.tuckClearance), m.tongue, -1),
       fill: "flapDark",
       tone: "flap",
       stack: 0,
-      lift: 4.4,
+      lift: liftMale,
     },
     {
       id: "top-left",
@@ -146,7 +153,7 @@ export function sleeveFaces(d: Dims, t: number): WorldFace[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
-      lift: 1.2,
+      lift: liftDust,
     },
     {
       id: "top-right",
@@ -160,7 +167,7 @@ export function sleeveFaces(d: Dims, t: number): WorldFace[] {
       fill: "flapDark",
       tone: "flap",
       stack: 0,
-      lift: 1.2,
+      lift: liftDust,
     },
     {
       id: "lid",
@@ -180,7 +187,7 @@ export function sleeveFaces(d: Dims, t: number): WorldFace[] {
       tone: "lid",
       stack: 0,
       // Local +z points into the box once the lid is down, so the offset is negative.
-      lift: -2.6,
+      lift: liftLid,
     },
     {
       id: "tuck",
@@ -194,7 +201,7 @@ export function sleeveFaces(d: Dims, t: number): WorldFace[] {
       fill: "tuck",
       tone: "flap",
       stack: 0,
-      lift: 1.4,
+      lift: liftTuck,
     },
   ];
 
@@ -311,11 +318,12 @@ function chamferTuck(length: number, depth: number): Pt[] {
 }
 
 export function sleeveNet(d: Dims): NetModel {
-  const { L, W, H, G } = d;
+  const { L, W, H, G, T } = resolveBoard(d);
   const m = sleeveMetrics(d);
   const bottom = Math.max(m.dust, m.female, m.male + m.tongue);
   const top = Math.max(m.topDust, W + m.tuck);
-  const width = G + 2 * (L + W);
+  const widths = [L, W, L, W].map((dim, i) => dim + GIRTH_COMP_FROM_GLUE[i] * T);
+  const width = G + widths.reduce((sum, w) => sum + w, 0);
   const height = bottom + H + top;
   const panels: NetModel["panels"] = [];
   const cuts: [Pt, Pt][] = [];
@@ -336,8 +344,7 @@ export function sleeveNet(d: Dims): NetModel {
     }
   };
 
-  const xs = [G, G + L, G + L + W, G + L + W + L];
-  const widths = [L, W, L, W];
+  const xs = [G, G + widths[0], G + widths[0] + widths[1], G + widths[0] + widths[1] + widths[2]];
 
   widths.forEach((panelW, index) => {
     const x = xs[index];
@@ -372,37 +379,40 @@ export function sleeveNet(d: Dims): NetModel {
     );
   };
 
-  dust(xs[1], W, bottom, m.dust, -1);
-  dust(xs[3], W, bottom, m.dust, -1);
-  dust(xs[1], W, bottom + H, m.topDust, 1);
-  dust(xs[3], W, bottom + H, m.topDust, 1);
+  dust(xs[1], widths[1], bottom, m.dust, -1);
+  dust(xs[3], widths[3], bottom, m.dust, -1);
+  dust(xs[1], widths[1], bottom + H, m.topDust, 1);
+  dust(xs[3], widths[3], bottom + H, m.topDust, 1);
 
+  const lenA = widths[0];
+  const lenB = widths[2];
   outline(
     [
       [xs[0], bottom - m.female],
-      [xs[0] + L, bottom - m.female],
-      [xs[0] + L, bottom],
+      [xs[0] + lenA, bottom - m.female],
+      [xs[0] + lenA, bottom],
       [xs[0], bottom],
     ],
     [2],
     "flap",
     "шлиц",
   );
-  const slotX = xs[0] + (L - m.slotW) / 2;
+  const slotX = xs[0] + (lenA - m.slotW) / 2;
+  const slotH = Math.max(m.slotKerf * 1.1, m.female * 0.16);
   const slotY = bottom - m.female * 0.62;
   add(
     [
       [slotX, slotY],
       [slotX + m.slotW, slotY],
-      [slotX + m.slotW, slotY + m.female * 0.16],
-      [slotX, slotY + m.female * 0.16],
+      [slotX + m.slotW, slotY + slotH],
+      [slotX, slotY + slotH],
     ],
     "slot",
   );
 
   const maleX = xs[2];
-  const tongueW = m.slotW * 0.62;
-  const tx = maleX + (L - tongueW) / 2;
+  const tongueW = Math.max(12, m.slotW * 0.62 - m.tuckClearance);
+  const tx = maleX + (lenB - tongueW) / 2;
   outline(
     [
       [maleX, bottom - m.male],
@@ -410,8 +420,8 @@ export function sleeveNet(d: Dims): NetModel {
       [tx, bottom - m.male - m.tongue],
       [tx + tongueW, bottom - m.male - m.tongue],
       [tx + tongueW, bottom - m.male],
-      [maleX + L, bottom - m.male],
-      [maleX + L, bottom],
+      [maleX + lenB, bottom - m.male],
+      [maleX + lenB, bottom],
       [maleX, bottom],
     ],
     [6],
@@ -423,24 +433,24 @@ export function sleeveNet(d: Dims): NetModel {
   outline(
     [
       [lidX, bottom + H],
-      [lidX + L, bottom + H],
-      [lidX + L, bottom + H + W],
+      [lidX + lenA, bottom + H],
+      [lidX + lenA, bottom + H + W],
       [lidX, bottom + H + W],
     ],
     [0, 2],
     "lid",
     "Крышка",
   );
-  const end = Math.min(m.tuck * 0.5, L * 0.14, 24);
+  const end = Math.min(m.tuck * 0.5, lenA * 0.14, 24);
   const tuckY = bottom + H + W;
   outline(
     [
       [lidX + end, tuckY],
       [lidX + end * 0.35, tuckY + m.tuck * 0.55],
-      [lidX + L * 0.14, tuckY + m.tuck],
-      [lidX + L * 0.86, tuckY + m.tuck],
-      [lidX + L - end * 0.35, tuckY + m.tuck * 0.55],
-      [lidX + L - end, tuckY],
+      [lidX + lenA * 0.14, tuckY + m.tuck],
+      [lidX + lenA * 0.86, tuckY + m.tuck],
+      [lidX + lenA - end * 0.35, tuckY + m.tuck * 0.55],
+      [lidX + lenA - end, tuckY],
     ],
     [],
     "flap",

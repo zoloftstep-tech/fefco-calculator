@@ -1,49 +1,79 @@
 import { phase, type PanelDef } from "@/lib/fold";
 import type { Pt } from "@/lib/math";
 import type { Dims } from "@/lib/fefco-types";
+import { resolveBoard } from "@/lib/params/board";
+import { buildToeEnds } from "@/lib/boxes/parts/toe";
 
+/**
+ * FEFCO 0471 — wrap with rounded locking lid (Essential Image / Opus catalog decode).
+ * Lid side flaps are quarter-disc tuck tongues into end TOE pockets (not side-wall hooks).
+ * Front tuck tongue height ≈ 0.8·H (TTH = 0.8·PH3).
+ */
 export function wrap471Metrics(d: Dims) {
-  const flap = Math.min(d.H * 0.62, Math.max(28, d.W * 0.42));
-  const hook = Math.max(14, Math.min(22, d.H * 0.22));
-  const slotW = Math.min(22, Math.max(12, d.W * 0.16));
-  const slotH = Math.min(16, Math.max(10, d.H * 0.18));
-  return { flap, hook, slotW, slotH };
+  const { W, H, T, tuckClearance, bridge, slotKerf } = resolveBoard(d);
+  const flap = Math.min(H * 0.8, Math.max(28, H * 0.72)) + tuckClearance * 0.15;
+  /** Quarter-disc ear reach into the end pocket. */
+  const ear = Math.min(H * 0.85, W * 0.42);
+  const lug = Math.max(10, Math.min(16, H * 0.18 + T));
+  const inner = Math.max(8, H - lug);
+  return {
+    flap,
+    ear,
+    lug,
+    inner,
+    bridge,
+    T,
+    tuckClearance,
+    slotKerf,
+    slotDepth: Math.max(6, slotKerf * 2.2 + T),
+  };
 }
 
+/** Catalog rounded front tuck (arc silhouette). */
 function roundedFlap(length: number, depth: number): Pt[] {
-  const radius = Math.min(depth * 0.42, length * 0.14, 36);
+  const r = Math.min(depth * 0.42, length * 0.14, 36);
   return [
-    [radius, 0],
-    [length - radius, 0],
-    [length - radius * 0.25, depth * 0.38],
-    [length * 0.9, depth],
-    [length * 0.1, depth],
-    [radius * 0.25, depth * 0.38],
+    [r, 0],
+    [length - r, 0],
+    [length - r * 0.2, depth * 0.28],
+    [length * 0.94, depth * 0.62],
+    [length * 0.86, depth],
+    [length * 0.14, depth],
+    [length * 0.06, depth * 0.62],
+    [r * 0.2, depth * 0.28],
   ];
 }
 
-function hookPoly(depth: number, reach: number, dir: 1 | -1): Pt[] {
-  const inset = depth * 0.22;
-  return [
-    [0, inset],
-    [0, depth - inset],
-    [dir * reach, depth * 0.72],
-    [dir * reach, depth * 0.28],
+/** Quarter-disc lid ear (Opus: catalog DxT1 curved tongues into end pockets). */
+function quarterDiscEar(span: number, reach: number, dir: 1 | -1): Pt[] {
+  const y0 = span * 0.12;
+  const y1 = span * 0.88;
+  const steps = 5;
+  const pts: Pt[] = [
+    [0, y0],
+    [0, y1],
   ];
+  for (let i = steps; i >= 0; i--) {
+    const u = i / steps;
+    const ang = (Math.PI / 2) * (1 - u);
+    const x = dir * reach * Math.sin(ang);
+    const y = y0 + (y1 - y0) * (0.5 + 0.5 * Math.cos(ang));
+    pts.push([x, y]);
+  }
+  return pts;
 }
 
 export function wrap471Panels(d: Dims): PanelDef[] {
   const { L, W, H } = d;
   const m = wrap471Metrics(d);
-  const walls = (t: number) => phase(t, 0.02, 0.18, 0, 90);
-  const ends = (t: number) => phase(t, 0.14, 0.32, 0, 90);
-  const lid = (t: number) => phase(t, 0.36, 0.54, 0, 90);
-  const flap = (t: number) => phase(t, 0.56, 0.74, 0, 102);
-  const hooks = (t: number) => phase(t, 0.76, 1, 0, 94);
-
-  const slotY = 6;
-  const slotTop = H * 0.9;
-  const slotBot = slotTop - m.slotH;
+  const walls = (t: number) => phase(t, 0.02, 0.16, 0, 90);
+  const ends = (t: number) => phase(t, 0.1, 0.22, 0, 90);
+  const bridges = (t: number) => phase(t, 0.18, 0.28, 0, 90);
+  const rolls = (t: number) => phase(t, 0.26, 0.36, 0, 90);
+  const lugs = (t: number) => phase(t, 0.34, 0.44, 0, 88);
+  const lid = (t: number) => phase(t, 0.46, 0.62, 0, 90);
+  const ears = (t: number) => (t <= 0.62 ? phase(t, 0.4, 0.52, 0, 48) : phase(t, 0.62, 0.76, 48, 100));
+  const flap = (t: number) => phase(t, 0.76, 0.92, 0, 104);
 
   return [
     {
@@ -67,10 +97,23 @@ export function wrap471Panels(d: Dims): PanelDef[] {
     },
     wall("front", "Передняя стенка", [0, 0, 0], "x", -1, rect(L, -H), walls, "front", "Перед"),
     wall("back", "Задняя стенка", [0, W, 0], "x", 1, rect(L, H), walls, "back", "Зад"),
-    wall("left", "Левый торец", [0, 0, 0], "y", 1, endPoly(W, H, -1), ends, "side", "Торец"),
-    wall("right", "Правый торец", [L, 0, 0], "y", -1, endPoly(W, H, 1), ends, "side", "Торец"),
-    slot("slot-l", "left", -1, slotBot, slotTop, slotY, slotY + m.slotW),
-    slot("slot-r", "right", 1, slotBot, slotTop, slotY, slotY + m.slotW),
+    ...buildToeEnds({
+      span: W,
+      height: H,
+      bridge: m.bridge,
+      inner: m.inner,
+      lug: m.lug,
+      slotDepth: m.slotDepth,
+      lugCount: W < 120 ? 1 : 2,
+      slotX: (side) => (side === "left" ? 3.2 : L - 3.2 - m.slotDepth),
+      endsAngle: ends,
+      bridgeAngle: bridges,
+      rollAngle: rolls,
+      lugAngle: lugs,
+      left: { id: "left", hinge: [0, 0, 0], sign: 1, dir: -1 },
+      right: { id: "right", hinge: [L, 0, 0], sign: -1, dir: 1 },
+      lift: m.T * 0.2,
+    }),
     {
       id: "lid",
       name: "Крышка",
@@ -88,7 +131,38 @@ export function wrap471Panels(d: Dims): PanelDef[] {
       fill: "lid",
       tone: "lid",
       stack: 0,
+      lift: -m.T * 0.3,
       netLabel: "Крышка",
+    },
+    {
+      id: "ear-l",
+      name: "Левое ушко крышки",
+      parent: "lid",
+      hinge: [0, 0, 0],
+      axis: "y",
+      sign: 1,
+      angle: ears,
+      poly: quarterDiscEar(W, m.ear, -1),
+      fill: "flap",
+      tone: "flap",
+      stack: 0,
+      lift: m.T * 0.7,
+      netLabel: "Ушко",
+    },
+    {
+      id: "ear-r",
+      name: "Правое ушко крышки",
+      parent: "lid",
+      hinge: [L, 0, 0],
+      axis: "y",
+      sign: -1,
+      angle: ears,
+      poly: quarterDiscEar(W, m.ear, 1),
+      fill: "flap",
+      tone: "flap",
+      stack: 0,
+      lift: m.T * 0.7,
+      netLabel: "Ушко",
     },
     {
       id: "lid-front",
@@ -102,11 +176,9 @@ export function wrap471Panels(d: Dims): PanelDef[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
-      lift: 1.4,
+      lift: m.T * 0.95,
       netLabel: "Клапан",
     },
-    hook("hook-l", "Левый крючок", "lid-front", [0, 0, 0], 1, hookPoly(m.flap * 0.7, m.hook, -1), hooks),
-    hook("hook-r", "Правый крючок", "lid-front", [L, 0, 0], -1, hookPoly(m.flap * 0.7, m.hook, 1), hooks),
   ];
 }
 
@@ -116,15 +188,6 @@ function rect(length: number, height: number): Pt[] {
     [length, 0],
     [length, height],
     [0, height],
-  ];
-}
-
-function endPoly(span: number, height: number, dir: 1 | -1): Pt[] {
-  return [
-    [0, 0],
-    [0, span],
-    [dir * height, span],
-    [dir * height, 0],
   ];
 }
 
@@ -152,60 +215,5 @@ function wall(
     tone: "body",
     stack: 0,
     netLabel,
-  };
-}
-
-function slot(
-  id: string,
-  parent: string,
-  dir: 1 | -1,
-  inner: number,
-  outer: number,
-  y0: number,
-  y1: number,
-): PanelDef {
-  return {
-    id,
-    name: "Прорезь торца",
-    parent,
-    hinge: [0, 0, 0],
-    axis: "y",
-    sign: 1,
-    angle: () => 0,
-    poly: [
-      [dir * inner, y0],
-      [dir * outer, y0],
-      [dir * outer, y1],
-      [dir * inner, y1],
-    ],
-    fill: "slot",
-    tone: "slot",
-    stack: -1,
-  };
-}
-
-function hook(
-  id: string,
-  name: string,
-  parent: string,
-  hinge: [number, number, number],
-  sign: 1 | -1,
-  poly: Pt[],
-  angle: (t: number) => number,
-): PanelDef {
-  return {
-    id,
-    name,
-    parent,
-    hinge,
-    axis: "y",
-    sign,
-    angle,
-    poly,
-    fill: "tuck",
-    tone: "flap",
-    stack: 0,
-    lift: 1.2,
-    netLabel: "Крючок",
   };
 }
