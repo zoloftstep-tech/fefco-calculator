@@ -5,6 +5,8 @@ export type Dims = {
   W: number;
   H: number;
   G: number;
+  /** Board caliper in mm (default E-flute ≈ 1.5). Drives tuck clearance, slots, girth. */
+  T: number;
 };
 
 export type Stage = {

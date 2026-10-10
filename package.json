@@ -6,7 +6,8 @@
     "dev": "next dev -H 0.0.0.0 -p 4317",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "check:folds": "npx --yes tsx scripts/check-folds.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
