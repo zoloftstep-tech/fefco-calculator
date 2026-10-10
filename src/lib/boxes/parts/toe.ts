@@ -29,6 +29,14 @@ export function toeLugSpans(span: number, count: number): [number, number][] {
   ];
 }
 
+/**
+ * Inward kick of the lock lug off the inner wall.
+ * 0° continues straight down into the gap left by `inner = H − lug`.
+ * ~90° would lay the lug flat at the hinge, which sits about `lug` mm above the floor,
+ * so the tip never reaches the slot.
+ */
+export const TOE_LUG_FOLD = 22;
+
 export function toeLugPoly(width: number, depth: number, dir: 1 | -1): Pt[] {
   const tip = dir * depth;
   const bevel = Math.min(2.2, width * 0.16);
@@ -59,7 +67,7 @@ type ToeSide = {
 
 /**
  * Roll-end / double-wall end: outer H → double-crease bridge → inner return → lugs into floor slots.
- * Used by 0427 TOE and 0422 long-wall locks (catalog Essential Image).
+ * Used by 0427, 0470, and 0471 end walls. 0422 keeps its own long-wall lock.
  */
 export function buildToeEnds(opts: {
   parentFloor?: string;
@@ -177,7 +185,8 @@ export function buildToeEnds(opts: {
           parent: rollId,
           hinge: [dir * inner, y0, 0],
           axis: "y",
-          sign,
+          // Opposite sense from the wall: the wall's sign swings the lug out of the box.
+          sign: sign === 1 ? -1 : 1,
           angle: lugAngle,
           poly: toeLugPoly(width, lug, dir),
           fill: "tuck",

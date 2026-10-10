@@ -2,7 +2,7 @@ import { phase, type PanelDef } from "@/lib/fold";
 import type { Pt } from "@/lib/math";
 import type { Dims } from "@/lib/fefco-types";
 import { resolveBoard } from "@/lib/params/board";
-import { buildToeEnds } from "@/lib/boxes/parts/toe";
+import { buildToeEnds, TOE_LUG_FOLD } from "@/lib/boxes/parts/toe";
 
 /**
  * FEFCO 0471 — wrap with rounded locking lid (Essential Image / Opus catalog decode).
@@ -70,7 +70,7 @@ export function wrap471Panels(d: Dims): PanelDef[] {
   const ends = (t: number) => phase(t, 0.1, 0.22, 0, 90);
   const bridges = (t: number) => phase(t, 0.18, 0.28, 0, 90);
   const rolls = (t: number) => phase(t, 0.26, 0.36, 0, 90);
-  const lugs = (t: number) => phase(t, 0.34, 0.44, 0, 88);
+  const lugs = (t: number) => phase(t, 0.34, 0.44, 0, TOE_LUG_FOLD);
   const lid = (t: number) => phase(t, 0.46, 0.62, 0, 90);
   const ears = (t: number) => (t <= 0.62 ? phase(t, 0.4, 0.52, 0, 48) : phase(t, 0.62, 0.76, 48, 100));
   const flap = (t: number) => phase(t, 0.76, 0.92, 0, 104);

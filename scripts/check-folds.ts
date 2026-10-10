@@ -44,6 +44,9 @@ assert(openFront[1] < 0, `0201 front flap opens outward y=${openFront[1].toFixed
 assert(shutFront[1] > 10 && shutFront[1] < 190, `0201 front flap closes y=${shutFront[1].toFixed(1)}`);
 assert(Math.abs(shutFront[2] - 150) < 2, `0201 front flap at top z=${shutFront[2].toFixed(1)}`);
 assert(shutLeft[2] < shutFront[2] - 0.4, `small flap sits under big z=${shutLeft[2].toFixed(2)}`);
+const thick = faceMap("0201", { ...d0201, T: 8 }, 1, 0.4);
+const thickDrop = center(thick["flap-front"].points)[2] - center(thick["flap-left"].points)[2];
+assert(Math.abs(thickDrop - 8) < 0.6, `0201 minor drops one caliper, dz=${thickDrop.toFixed(2)}`);
 
 const wide = faceMap("0201", { L: 400, W: 260, H: 80, G: 20, T: 1.5 }, 1, 0);
 const wideFront = center(wide["flap-front"].points);
@@ -132,10 +135,14 @@ assert(center(box427["lug-l-0"].points)[2] < 20, "0427 lug near the floor");
 {
   const lug = box427["lug-l-0"].points;
   const hole = box427["slot-l-0"].points;
+  const lugRight = box427["lug-r-0"].points;
   const overlap =
     Math.min(...lug.map((p) => p[0])) < Math.max(...hole.map((p) => p[0])) &&
     Math.max(...lug.map((p) => p[0])) > Math.min(...hole.map((p) => p[0]));
   assert(overlap, "0427 lug meets the base slot");
+  assert(Math.min(...lug.map((p) => p[0])) > -1, "0427 left lug stays inside the wall");
+  assert(Math.max(...lugRight.map((p) => p[0])) < d427.L + 1, "0427 right lug stays inside the wall");
+  assert(Math.min(...lug.map((p) => p[2])) < 4, "0427 lug reaches the floor slot");
   assert(Math.min(...box427["ear-l"].points.map((p) => p[0])) > 0, "0427 lid ear finishes inside the box");
   assert(Math.max(...box427["ear-l"].points.map((p) => p[0])) < 18, "0427 lid ear enters the box");
   assert(Math.min(...box427["lug-l-0"].points.map((p) => p[2])) > -1, "0427 lug does not pierce the floor");
@@ -192,6 +199,11 @@ const lid470 = faceMap("0470", d470, 0.66);
 assert(Math.min(...lid470["wing-l"].points.map((p) => p[0])) < -20, "0470 wings wait until the lid is down");
 
 const box470 = faceMap("0470", d470, 1);
+assert(center(box470["bot-l"].points)[0] > 2 && center(box470["bot-l"].points)[0] < d470.L, "0470 left bottom flap inside");
+assert(center(box470["bot-r"].points)[0] < d470.L - 2 && center(box470["bot-r"].points)[0] > 0, "0470 right bottom flap inside");
+assert(center(box470["bot-l"].points)[2] > 0 && center(box470["bot-r"].points)[2] > 0, "0470 bottom flaps sit on the floor");
+assert(Math.max(...box470["lug-l-0"].points.map((p) => p[0])) > 4, "0470 left lug points into the box");
+assert(Math.min(...box470["lug-l-0"].points.map((p) => p[0])) > -1, "0470 left lug stays inside the wall");
 assert(center(box470.lid.points)[2] > 90, "0470 lid up");
 assert(center(box470["front-lip"].points)[1] > 1, "0470 lip inside front");
 assert(center(box470.tongue.points)[1] > -5, "0470 tongue toward the lock");
@@ -224,6 +236,8 @@ const box471 = faceMap("0471", d471, 1);
 assert(center(box471.lid.points)[2] > 80, "0471 lid up");
 assert(Math.min(...box471["lid-front"].points.map((p) => p[1])) >= -1, "0471 rounded flap tucks inside");
 assert(center(box471["left-roll"].points)[0] > 1, "0471 left roll inside");
+assert(Math.min(...box471["lug-l-0"].points.map((p) => p[0])) > -1, "0471 left lug stays inside the wall");
+assert(Math.min(...box471["lug-l-0"].points.map((p) => p[2])) < 4, "0471 lug reaches the floor slot");
 assert(Math.min(...box471["ear-l"].points.map((p) => p[0])) > 0, "0471 lid ear finishes inside the box");
 assert(Math.max(...box471["ear-l"].points.map((p) => p[0])) < 20, "0471 lid ear enters the end pocket");
 assert(getNet("0471", d471).panels.some((panel) => panel.label === "Биговка"), "0471 draws double-crease bridge");

@@ -2,7 +2,7 @@ import { phase, type PanelDef } from "@/lib/fold";
 import type { Pt } from "@/lib/math";
 import type { Dims } from "@/lib/fefco-types";
 import { resolveBoard } from "@/lib/params/board";
-import { buildToeEnds, toeLugSpans } from "@/lib/boxes/parts/toe";
+import { buildToeEnds, TOE_LUG_FOLD, toeLugSpans } from "@/lib/boxes/parts/toe";
 
 const BRIDGE_FOLD = 90;
 const ROLL_FOLD = 90;
@@ -122,7 +122,7 @@ export function mailerPanels(d: Dims): PanelDef[] {
   const ends = (t: number) => phase(t, 0.14, 0.24, 0, 90);
   const bridges = (t: number) => phase(t, 0.2, 0.3, 0, BRIDGE_FOLD);
   const rolls = (t: number) => phase(t, 0.28, 0.38, 0, ROLL_FOLD);
-  const lugs = (t: number) => phase(t, 0.36, 0.44, 0, 88);
+  const lugs = (t: number) => phase(t, 0.36, 0.44, 0, TOE_LUG_FOLD);
   const lid = (t: number) => phase(t, 0.56, 0.68, 0, 90);
   const ears = (t: number) => (t <= 0.68 ? phase(t, 0.44, 0.56, 0, 48) : phase(t, 0.68, 0.8, 48, 100));
   const tuckAngle = (t: number) => phase(t, 0.86, 0.94, 0, 104);

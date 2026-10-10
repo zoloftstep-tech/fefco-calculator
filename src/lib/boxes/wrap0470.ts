@@ -2,7 +2,7 @@ import { phase, type PanelDef } from "@/lib/fold";
 import type { Pt } from "@/lib/math";
 import type { Dims } from "@/lib/fefco-types";
 import { resolveBoard } from "@/lib/params/board";
-import { buildToeEnds } from "@/lib/boxes/parts/toe";
+import { buildToeEnds, TOE_LUG_FOLD } from "@/lib/boxes/parts/toe";
 
 /**
  * FEFCO 0470 — wrap / self-locking tray with hinged lid (Essential Image).
@@ -55,7 +55,7 @@ export function wrapPanels(d: Dims): PanelDef[] {
   const ends = (t: number) => phase(t, 0.02, 0.14, 0, 90);
   const bridges = (t: number) => phase(t, 0.1, 0.2, 0, 90);
   const rolls = (t: number) => phase(t, 0.18, 0.28, 0, 90);
-  const lugs = (t: number) => phase(t, 0.26, 0.36, 0, 88);
+  const lugs = (t: number) => phase(t, 0.26, 0.36, 0, TOE_LUG_FOLD);
   const bottoms = (t: number) => phase(t, 0.12, 0.24, 0, 90);
   const front = (t: number) => phase(t, 0.14, 0.28, 0, 90);
   const frontEars = (t: number) => phase(t, 0.24, 0.36, 0, 96);
@@ -176,7 +176,7 @@ export function wrapPanels(d: Dims): PanelDef[] {
       parent: "left",
       hinge: [0, 0, 0],
       axis: "y",
-      sign: -1,
+      sign: 1,
       angle: bottoms,
       poly: [
         [0, W * 0.08],
@@ -187,7 +187,7 @@ export function wrapPanels(d: Dims): PanelDef[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
-      lift: m.T * 0.3,
+      lift: -m.T * 0.3,
       netLabel: "Дно",
     },
     {
@@ -196,7 +196,7 @@ export function wrapPanels(d: Dims): PanelDef[] {
       parent: "right",
       hinge: [0, 0, 0],
       axis: "y",
-      sign: 1,
+      sign: -1,
       angle: bottoms,
       poly: [
         [0, W * 0.08],
@@ -207,7 +207,7 @@ export function wrapPanels(d: Dims): PanelDef[] {
       fill: "flap",
       tone: "flap",
       stack: 0,
-      lift: m.T * 0.3,
+      lift: -m.T * 0.3,
       netLabel: "Дно",
     },
     ear("ear-lf", "Переднее ушко", "front", [0, 0, 0], "y", 1, sideEar(H, m.ear, -1), frontEars, m.T * 0.4),
